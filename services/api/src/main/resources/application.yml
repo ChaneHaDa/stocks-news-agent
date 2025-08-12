@@ -44,11 +44,11 @@ app:
         weight: 1.0
         enabled: true
       - name: "Maeil Economy"
-        url: "https://www.mk.co.kr/rss/30000041/"
+        url: "https://www.mk.co.kr/rss/30100041/"
         weight: 0.9
         enabled: true
       - name: "Hankyung"
-        url: "https://rss.hankyung.com/new/news_all.xml"
+        url: "https://www.hankyung.com/feed/finance"
         weight: 0.8
         enabled: true
     

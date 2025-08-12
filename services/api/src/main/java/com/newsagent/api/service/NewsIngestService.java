@@ -189,8 +189,7 @@ public class NewsIngestService {
         }
         
         NewsScore newsScore = NewsScore.builder()
-            .newsId(news.getId())
-            .news(news)
+            .news(news)  // @MapsId를 사용할 때는 news 객체만 설정
             .importance(scoreResult.getImportance())
             .reasonJson(reasonJsonString)
             .rankScore(scoreResult.getRankScore())
