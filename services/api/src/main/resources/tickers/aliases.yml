@@ -1,0 +1,48 @@
+# Korean Stock Ticker Aliases
+# Format: "ticker": ["alias1", "alias2", "company_name"]
+
+tickers:
+  "005930":
+    - "삼성전자"
+    - "Samsung Electronics"
+    - "SAMSUNG"
+    - "삼성"
+  
+  "000660":
+    - "SK하이닉스"
+    - "SK Hynix"
+    - "하이닉스"
+    - "SKH"
+  
+  "035720":
+    - "카카오"
+    - "Kakao"
+    - "KAKAO"
+  
+  "051910":
+    - "LG화학"
+    - "LG Chem"
+    - "LG Chemical"
+  
+  "068270":
+    - "셀트리온"
+    - "Celltrion"
+  
+  "035420":
+    - "NAVER"
+    - "네이버"
+  
+  "006400":
+    - "삼성SDI"
+    - "Samsung SDI"
+  
+  "207940":
+    - "삼성바이오로직스"
+    - "Samsung Biologics"
+    
+  "373220":
+    - "LG에너지솔루션"
+    - "LG Energy Solution"
+    - "LGES"
+    
+  # Add more tickers as needed
