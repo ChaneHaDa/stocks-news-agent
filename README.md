@@ -6,8 +6,8 @@
 
 ```
 news-agent/
-├── services/api/         # FastAPI 백엔드
-├── web/                  # Next.js 프론트엔드
+├── services/api/         # Spring Boot 백엔드
+├── web/                  # Next.js 프론트엔드  
 ├── contracts/            # OpenAPI 스키마 및 계약
 └── README.md
 ```
@@ -39,21 +39,17 @@ docker compose down
 
 ### 🛠️ 개발 모드 (로컬 실행)
 
-#### 1. API 서버 실행 (FastAPI)
+#### 1. API 서버 실행 (Spring Boot)
 
 ```bash
 cd services/api
 
-# Python 가상환경 생성 및 활성화
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# venv\Scripts\activate   # Windows
+# Gradle로 빌드 및 실행
+./gradlew bootJar
+java -jar build/libs/news-agent-api.jar
 
-# 의존성 설치
-pip install -r requirements.txt
-
-# 서버 시작
-uvicorn main:app --reload --port 8000
+# 또는 직접 실행
+./gradlew bootRun
 ```
 
 #### 2. 웹 UI 실행 (Next.js)
@@ -90,12 +86,12 @@ curl "http://localhost:8000/news/top?n=5&tickers=005930,035720"
 |--------|--------|------|
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | API 서버 URL (웹에서 접근) |
 | `NODE_ENV` | `development` | Node.js 환경 모드 |
-| `PYTHONPATH` | `/app` | Python 모듈 경로 |
+| `JAVA_OPTS` | `-Xmx512m -Xms256m` | Java JVM 옵션 |
 
 ### Docker Compose 환경 변수
 
 Docker Compose 실행 시 자동으로 설정되는 환경 변수들:
-- API 서버: `PYTHONPATH=/app`
+- API 서버: `JAVA_OPTS=-Xmx512m -Xms256m`
 - Web 서버: `NODE_ENV=production`, `NEXT_PUBLIC_API_URL=http://localhost:8000`
 
 ## 브랜치 전략
@@ -121,18 +117,18 @@ Docker Compose 실행 시 자동으로 설정되는 환경 변수들:
 
 ## 기술 스택
 
-- **Backend**: FastAPI, Python 3.11+
+- **Backend**: Spring Boot, Java 17+
 - **Frontend**: Next.js, TypeScript, Tailwind CSS
 - **API Documentation**: OpenAPI 3.0
 - **Containerization**: Docker, Docker Compose
-- **Development**: uvicorn, npm
+- **Development**: Gradle, npm
 
 ## 포트 정보
 
 | 서비스 | 포트 | 설명 |
 |--------|------|------|
 | Web UI | 3000 | Next.js 프론트엔드 |
-| API Server | 8000 | FastAPI 백엔드 |
+| API Server | 8000 | Spring Boot 백엔드 |
 | Health Check | 8000/healthz | API 상태 확인 |
 
 ## 트러블슈팅
@@ -171,10 +167,7 @@ Docker가 작동하지 않는 경우 개발 모드로 실행:
 ```bash
 # Terminal 1: API 서버
 cd services/api
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+./gradlew bootRun
 
 # Terminal 2: 웹 서버  
 cd web

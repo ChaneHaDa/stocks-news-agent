@@ -7,13 +7,13 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - PYTHONPATH=/app
+      - JAVA_OPTS=-Xmx512m -Xms256m
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8000/healthz || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
     restart: unless-stopped
     networks:
       - news-agent-network
