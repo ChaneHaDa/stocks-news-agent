@@ -1,0 +1,149 @@
+openapi: 3.0.3
+info:
+  title: News Agent API
+  version: 0.1.0
+  description: Stock news aggregation and scoring API
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+
+paths:
+  /healthz:
+    get:
+      summary: Health check endpoint
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+
+  /news/top:
+    get:
+      summary: Get top news articles
+      parameters:
+        - name: n
+          in: query
+          description: Number of articles to return
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: tickers
+          in: query
+          description: Comma-separated list of stock tickers to filter
+          schema:
+            type: string
+            example: "005930,035720"
+        - name: lang
+          in: query
+          description: Language preference
+          schema:
+            type: string
+            default: "ko"
+            enum: ["ko", "en"]
+      responses:
+        '200':
+          description: Successfully retrieved news articles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsResponse'
+
+components:
+  schemas:
+    NewsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/NewsItem'
+        next_cursor:
+          type: string
+          nullable: true
+          description: Cursor for pagination
+      required:
+        - items
+        - next_cursor
+
+    NewsItem:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the news item
+        source:
+          type: string
+          description: News source name
+        title:
+          type: string
+          description: Article title
+        url:
+          type: string
+          format: uri
+          description: Link to the original article
+        published_at:
+          type: string
+          format: date-time
+          description: Publication timestamp in ISO 8601 format
+        tickers:
+          type: array
+          items:
+            type: string
+          description: Related stock ticker symbols
+        summary:
+          type: string
+          description: AI-generated summary of the article
+        importance:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Calculated importance score
+        reason:
+          $ref: '#/components/schemas/ImportanceReason'
+      required:
+        - id
+        - source
+        - title
+        - url
+        - published_at
+        - tickers
+        - summary
+        - importance
+        - reason
+
+    ImportanceReason:
+      type: object
+      properties:
+        source_weight:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Weight based on news source credibility
+        tickers_hit:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Score based on ticker relevance
+        keywords_hit:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Score based on keyword matching
+        freshness:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Score based on article recency
+      required:
+        - source_weight
+        - tickers_hit
+        - keywords_hit
+        - freshness

@@ -1,0 +1,98 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "NewsItem",
+  "description": "Schema for a single news item with scoring information",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for the news item"
+    },
+    "source": {
+      "type": "string",
+      "description": "News source name (e.g., Yonhap, MK, KED)"
+    },
+    "title": {
+      "type": "string",
+      "description": "Article title"
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "description": "Link to the original article"
+    },
+    "published_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Publication timestamp in ISO 8601 format"
+    },
+    "tickers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9]{6}$"
+      },
+      "description": "Related Korean stock ticker symbols (6-digit codes)"
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "AI-generated summary of the article (3-5 sentences)"
+    },
+    "importance": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Calculated importance score between 0 and 1"
+    },
+    "reason": {
+      "type": "object",
+      "description": "Breakdown of importance calculation factors",
+      "properties": {
+        "source_weight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Weight based on news source credibility"
+        },
+        "tickers_hit": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Score based on ticker relevance and mentions"
+        },
+        "keywords_hit": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Score based on keyword matching (earnings, acquisition, etc.)"
+        },
+        "freshness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Score based on article recency (decay over time)"
+        }
+      },
+      "required": [
+        "source_weight",
+        "tickers_hit", 
+        "keywords_hit",
+        "freshness"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "id",
+    "source",
+    "title",
+    "url", 
+    "published_at",
+    "tickers",
+    "summary",
+    "importance",
+    "reason"
+  ],
+  "additionalProperties": false
+}
