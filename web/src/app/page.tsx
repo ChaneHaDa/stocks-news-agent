@@ -33,7 +33,8 @@ export default function Home() {
   useEffect(() => {
     const fetchNews = async () => {
       try {
-        const response = await axios.get<NewsResponse>('http://localhost:8000/news/top?n=10')
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+        const response = await axios.get<NewsResponse>(`${apiUrl}/news/top?n=10`)
         setNews(response.data.items)
         setError(null)
       } catch (err) {

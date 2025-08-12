@@ -1,0 +1,40 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+
+# Node modules and build artifacts
+node_modules
+.next
+dist
+build
+
+# Python cache and virtual environments
+__pycache__
+*.pyc
+*.pyo
+venv
+.venv
+env
+.env
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs
+
+# Development files
+.env.local
+.env.development
+.env.test

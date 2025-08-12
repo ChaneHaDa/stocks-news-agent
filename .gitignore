@@ -1,0 +1,101 @@
+# Root level gitignore for monorepo
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Temporary directories
+tmp/
+temp/
+
+# Build artifacts
+build/
+dist/
+out/
+
+# Coverage reports
+coverage/
+*.lcov
+.nyc_output
+
+# Dependency directories
+node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+ENV/
+env/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Secrets and keys
+*.pem
+*.key
+secrets/
+
+# Backup files
+*.bak
+*.backup
+
+# Cache
+.cache/
+.npm/
+.yarn/
+
+# Documentation build
+docs/_build/
+
+# Test artifacts
+test-results/
+coverage/
+
+# Local configuration overrides
+local.yml
+local.yaml
+local.json
+
+# Development utilities
+.dev/
