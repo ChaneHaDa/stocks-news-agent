@@ -64,9 +64,13 @@ public class MlClient {
             
             if (response != null && !response.getResults().isEmpty()) {
                 MlResponse.ImportanceResult result = response.getResults().get(0);
-                log.debug("Received importance score: {} for news: {}", 
-                         result.getImportanceP(), news.getId());
-                return Optional.of(result.getImportanceP());
+                Double importanceP = result.getImportanceP();
+                if (importanceP != null) {
+                    log.debug("Received importance score: {} for news: {}", importanceP, news.getId());
+                    return Optional.of(importanceP);
+                } else {
+                    log.warn("ML service returned null importance score for news: {}", news.getId());
+                }
             }
             
             return Optional.empty();
