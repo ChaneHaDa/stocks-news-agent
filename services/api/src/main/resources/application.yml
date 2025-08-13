@@ -25,6 +25,12 @@ spring:
         format_sql: true
     show-sql: ${JPA_SHOW_SQL:false}
   
+  # Jackson Configuration
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+  
   # Flyway Configuration
   flyway:
     enabled: true

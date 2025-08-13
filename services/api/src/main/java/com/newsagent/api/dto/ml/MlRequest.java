@@ -1,5 +1,7 @@
 package com.newsagent.api.dto.ml;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -48,6 +50,9 @@ public class MlRequest {
         private String title;
         private String body;
         private String source;
+        
+        @JsonProperty("published_at")
+        @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSSSSXXX")
         private OffsetDateTime publishedAt;
     }
     
