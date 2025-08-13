@@ -47,4 +47,7 @@ public interface NewsRepository extends JpaRepository<News, Long> {
     
     @Query("SELECT n.source, COUNT(n) FROM News n WHERE n.createdAt >= :since GROUP BY n.source")
     List<Object[]> countNewsBySourceSince(@Param("since") OffsetDateTime since);
+    
+    @Query("SELECT n FROM News n ORDER BY n.publishedAt DESC")
+    Page<News> findByOrderByPublishedAtDesc(Pageable pageable);
 }

@@ -22,9 +22,16 @@ public class NewsService {
     
     private final NewsRepository newsRepository;
     private final TickerMatcher tickerMatcher;
+    private final DiversityService diversityService;
     
     public List<NewsItem> getTopNews(int limit, Set<String> tickerFilters, String lang, OffsetDateTime since) {
-        Pageable pageable = PageRequest.of(0, limit);
+        return getTopNews(limit, tickerFilters, lang, since, "rank", true);
+    }
+    
+    public List<NewsItem> getTopNews(int limit, Set<String> tickerFilters, String lang, OffsetDateTime since, String sort, boolean applyDiversity) {
+        // Fetch more items initially for diversity filtering
+        int fetchLimit = applyDiversity ? Math.min(limit * 3, 100) : limit;
+        Pageable pageable = PageRequest.of(0, fetchLimit);
         
         Page<News> newsPage;
         
@@ -38,15 +45,66 @@ public class NewsService {
                     Set<String> foundTickers = tickerMatcher.findTickers(news.getBody());
                     return foundTickers.stream().anyMatch(tickerFilters::contains);
                 })
-                .limit(limit)
                 .collect(Collectors.toList());
+            
+            // Apply diversity if requested
+            if (applyDiversity && filteredNews.size() > limit) {
+                filteredNews = applyDiversityFiltering(filteredNews, limit);
+            } else if (filteredNews.size() > limit) {
+                filteredNews = filteredNews.subList(0, limit);
+            }
             
             return convertToNewsItems(filteredNews);
         } else {
-            // No ticker filter, get top news by importance
-            newsPage = newsRepository.findNewsWithFilters(null, null, since, pageable);
-            return convertToNewsItems(newsPage.getContent());
+            // Sort based on parameter
+            if ("time".equals(sort)) {
+                newsPage = newsRepository.findByOrderByPublishedAtDesc(pageable);
+            } else {
+                // Default to rank-based sorting
+                newsPage = newsRepository.findNewsWithFilters(null, null, since, pageable);
+            }
+            
+            List<News> newsList = newsPage.getContent();
+            
+            // Apply diversity if requested
+            if (applyDiversity && newsList.size() > limit) {
+                newsList = applyDiversityFiltering(newsList, limit);
+            } else if (newsList.size() > limit) {
+                newsList = newsList.subList(0, limit);
+            }
+            
+            return convertToNewsItems(newsList);
         }
+    }
+    
+    private List<News> applyDiversityFiltering(List<News> newsList, int targetSize) {
+        // Apply MMR with lambda=0.7 (70% relevance, 30% diversity)
+        List<News> diverseNews = diversityService.applyMMR(newsList, targetSize, 0.7);
+        
+        // Ensure we don't have more than 2 items from the same topic cluster
+        Map<Integer, List<News>> clusters = diversityService.clusterByTopic(diverseNews, 0.6);
+        
+        List<News> finalList = new ArrayList<>();
+        for (List<News> cluster : clusters.values()) {
+            // Take at most 2 items from each cluster
+            int itemsToTake = Math.min(2, cluster.size());
+            finalList.addAll(cluster.subList(0, itemsToTake));
+            
+            if (finalList.size() >= targetSize) {
+                break;
+            }
+        }
+        
+        // If we still need more items and have space, add remaining items
+        if (finalList.size() < targetSize) {
+            for (News news : diverseNews) {
+                if (!finalList.contains(news) && finalList.size() < targetSize) {
+                    finalList.add(news);
+                }
+            }
+        }
+        
+        return finalList.subList(0, Math.min(targetSize, finalList.size()));
     }
     
     public Optional<NewsItem> getNewsById(Long id) {
