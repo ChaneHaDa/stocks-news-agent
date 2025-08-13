@@ -146,18 +146,72 @@ public class ImportanceScorer {
     }
     
     private double calculateRankScore(double importance, OffsetDateTime publishedAt) {
-        // Rank score combines importance with recency for final ranking
-        double baseScore = importance;
+        // Enhanced rank score: 0.45*importance + 0.25*recency + 0.25*relevance + 0.05*novelty
         
-        if (publishedAt != null) {
-            long hoursAgo = ChronoUnit.HOURS.between(publishedAt, OffsetDateTime.now());
-            
-            // Apply time decay
-            double timeDecay = Math.max(0.1, 1.0 - (hoursAgo / 168.0)); // Decay over 1 week
-            baseScore *= timeDecay;
+        // 1. Importance component (0.45 weight)
+        double normalizedImportance = Math.min(1.0, importance / 10.0); // Normalize to 0-1
+        double importanceComponent = 0.45 * normalizedImportance;
+        
+        // 2. Recency component (0.25 weight)
+        double recencyComponent = 0.25 * calculateRecencyScore(publishedAt);
+        
+        // 3. Relevance component (0.25 weight) - based on ticker and keyword scores
+        double relevanceComponent = 0.25 * calculateRelevanceScore(importance);
+        
+        // 4. Novelty component (0.05 weight) - simple time-based novelty for now
+        double noveltyComponent = 0.05 * calculateNoveltyScore(publishedAt);
+        
+        double rankScore = importanceComponent + recencyComponent + relevanceComponent + noveltyComponent;
+        
+        return Math.round(rankScore * 1000.0) / 1000.0;
+    }
+    
+    private double calculateRecencyScore(OffsetDateTime publishedAt) {
+        if (publishedAt == null) {
+            return 0.0;
         }
         
-        return Math.round(baseScore * 1000.0) / 1000.0;
+        long hoursAgo = ChronoUnit.HOURS.between(publishedAt, OffsetDateTime.now());
+        
+        // Recency score with logarithmic decay
+        if (hoursAgo <= 1) {
+            return 1.0;
+        } else if (hoursAgo <= 6) {
+            return 0.9;
+        } else if (hoursAgo <= 24) {
+            return 0.7;
+        } else if (hoursAgo <= 72) {
+            return 0.4;
+        } else if (hoursAgo <= 168) { // 1 week
+            return 0.2;
+        } else {
+            return 0.1;
+        }
+    }
+    
+    private double calculateRelevanceScore(double importance) {
+        // Use normalized importance as proxy for relevance
+        // In future iterations, this could consider user preferences
+        return Math.min(1.0, importance / 10.0);
+    }
+    
+    private double calculateNoveltyScore(OffsetDateTime publishedAt) {
+        if (publishedAt == null) {
+            return 0.0;
+        }
+        
+        long minutesAgo = ChronoUnit.MINUTES.between(publishedAt, OffsetDateTime.now());
+        
+        // Novelty bonus for very fresh content
+        if (minutesAgo <= 30) {
+            return 1.0;
+        } else if (minutesAgo <= 120) {
+            return 0.8;
+        } else if (minutesAgo <= 360) { // 6 hours
+            return 0.5;
+        } else {
+            return 0.2;
+        }
     }
     
     @lombok.Builder
