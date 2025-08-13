@@ -1,0 +1,53 @@
+resilience4j:
+  circuitbreaker:
+    instances:
+      ml-service:
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        sliding-window-size: 100
+        minimum-number-of-calls: 10
+        permitted-number-of-calls-in-half-open-state: 3
+        sliding-window-type: count_based
+        automatic-transition-from-open-to-half-open-enabled: true
+        
+  retry:
+    instances:
+      ml-service:
+        max-attempts: 3
+        wait-duration: 500ms
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - java.net.ConnectException
+          - java.net.SocketTimeoutException
+          - org.springframework.web.client.ResourceAccessException
+        ignore-exceptions:
+          - org.springframework.web.client.HttpClientErrorException
+
+# Cache configuration
+spring:
+  cache:
+    type: caffeine
+    caffeine:
+      spec: maximumSize=1000,expireAfterWrite=5m
+    cache-names:
+      - importance-scores
+      - summaries
+
+# ML service configuration  
+ml:
+  service:
+    base-url: ${ML_SERVICE_URL:http://localhost:8001}
+    connect-timeout: 5s
+    read-timeout: 30s
+    max-retries: 3
+    retry-delay: 500ms
+    
+    # Feature flags
+    enable-importance: ${ENABLE_ML_IMPORTANCE:true}
+    enable-summarize: ${ENABLE_ML_SUMMARIZE:true}  
+    enable-embed: ${ENABLE_ML_EMBED:true}
+    
+    # Cache settings
+    importance-cache-ttl: 5m
+    summary-cache-ttl: 24h
+    max-cache-size: 1000
