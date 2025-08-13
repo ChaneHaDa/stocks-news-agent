@@ -121,27 +121,36 @@ public class NewsIngestService {
         }
     }
     
-    @Transactional
     public IngestItemResult ingestSingleItem(RssItem item) {
-        // 1. Normalize content
-        String normalizedTitle = contentNormalizer.normalizeTitle(item.getTitle());
-        String normalizedBody = contentNormalizer.extractBestContent(item.getDescription(), item.getContent());
+        try {
+            // 1. Normalize content (no transaction needed)
+            String normalizedTitle = contentNormalizer.normalizeTitle(item.getTitle());
+            String normalizedBody = contentNormalizer.extractBestContent(item.getDescription(), item.getContent());
+            
+            // Validate normalized content
+            if (normalizedTitle == null || normalizedTitle.trim().isEmpty()) {
+                log.debug("Skipping news item with empty title after normalization");
+                return IngestItemResult.builder()
+                    .skipped(true)
+                    .reason("Empty title after normalization")
+                    .build();
+            }
         
-        // 2. Generate deduplication key
-        String dedupKey = contentNormalizer.generateDedupKey(
-            normalizedTitle, 
-            item.getSource(), 
-            item.getPublishedAt()
-        );
-        
-        // 3. Check for duplicates
-        if (newsRepository.existsByDedupKey(dedupKey)) {
-            log.debug("Skipping duplicate news item: {}", normalizedTitle);
-            return IngestItemResult.builder()
-                .skipped(true)
-                .reason("Duplicate dedup_key: " + dedupKey)
-                .build();
-        }
+            // 2. Generate deduplication key
+            String dedupKey = contentNormalizer.generateDedupKey(
+                normalizedTitle, 
+                item.getSource(), 
+                item.getPublishedAt()
+            );
+            
+            // 3. Check for duplicates (separate read-only transaction)
+            if (isDuplicate(dedupKey)) {
+                log.debug("Skipping duplicate news item: {}", normalizedTitle);
+                return IngestItemResult.builder()
+                    .skipped(true)
+                    .reason("Duplicate dedup_key: " + dedupKey)
+                    .build();
+            }
         
         // 4. Quality checks
         if (contentNormalizer.isContentTooShort(normalizedBody)) {
@@ -160,52 +169,77 @@ public class NewsIngestService {
                 .build();
         }
         
-        // 5. Create and save News entity
-        News news = News.builder()
-            .source(item.getSource())
-            .url(item.getLink())
-            .publishedAt(item.getPublishedAt())
-            .title(normalizedTitle)
-            .body(normalizedBody)
-            .dedupKey(dedupKey)
-            .lang("ko")
-            .createdAt(OffsetDateTime.now())
-            .build();
-        
-        news = newsRepository.save(news);
-        
-        // 6. Calculate importance score
-        RssProperties.RssSource sourceConfig = findSourceConfig(item.getSource());
-        ImportanceScorer.ScoreResult scoreResult = importanceScorer.calculateImportance(news, sourceConfig);
-        
-        // 7. Save score
-        // Convert reasonJson to JSON string
-        String reasonJsonString = null;
-        try {
-            reasonJsonString = objectMapper.writeValueAsString(scoreResult.getReasonJson());
-        } catch (JsonProcessingException e) {
-            log.error("Failed to serialize reason JSON", e);
-            reasonJsonString = "{}";
+            // 5. Save news item in separate transaction
+            return saveNewsItem(item, normalizedTitle, normalizedBody, dedupKey);
+                
+        } catch (Exception e) {
+            log.error("Failed to process RSS item: '{}'", item.getTitle(), e);
+            return IngestItemResult.builder()
+                .saved(false)
+                .error(e.getMessage())
+                .reason("Processing error: " + e.getClass().getSimpleName())
+                .build();
         }
-        
-        NewsScore newsScore = NewsScore.builder()
-            .news(news)  // @MapsId를 사용할 때는 news 객체만 설정
-            .importance(scoreResult.getImportance())
-            .reasonJson(reasonJsonString)
-            .rankScore(scoreResult.getRankScore())
-            .createdAt(OffsetDateTime.now())
-            .updatedAt(OffsetDateTime.now())
-            .build();
-        
-        newsScoreRepository.save(newsScore);
-        
-        log.debug("Saved news item: {} (importance: {})", normalizedTitle, scoreResult.getImportance());
-        
-        return IngestItemResult.builder()
-            .saved(true)
-            .newsId(news.getId())
-            .importance(scoreResult.getImportance())
-            .build();
+    }
+    
+    @Transactional(readOnly = true)
+    protected boolean isDuplicate(String dedupKey) {
+        return newsRepository.existsByDedupKey(dedupKey);
+    }
+    
+    @Transactional(rollbackFor = Exception.class)
+    protected IngestItemResult saveNewsItem(RssItem item, String normalizedTitle, String normalizedBody, String dedupKey) {
+        try {
+            // Create and save News entity
+            News news = News.builder()
+                .source(item.getSource())
+                .url(item.getLink())
+                .publishedAt(item.getPublishedAt())
+                .title(normalizedTitle)
+                .body(normalizedBody)
+                .dedupKey(dedupKey)
+                .lang("ko")
+                .createdAt(OffsetDateTime.now())
+                .build();
+            
+            news = newsRepository.save(news);
+            
+            // Calculate importance score
+            RssProperties.RssSource sourceConfig = findSourceConfig(item.getSource());
+            ImportanceScorer.ScoreResult scoreResult = importanceScorer.calculateImportance(news, sourceConfig);
+            
+            // Save score
+            String reasonJsonString = null;
+            try {
+                reasonJsonString = objectMapper.writeValueAsString(scoreResult.getReasonJson());
+            } catch (JsonProcessingException e) {
+                log.error("Failed to serialize reason JSON", e);
+                reasonJsonString = "{}";
+            }
+            
+            NewsScore newsScore = NewsScore.builder()
+                .news(news)  // @MapsId를 사용할 때는 news 객체만 설정
+                .importance(scoreResult.getImportance())
+                .reasonJson(reasonJsonString)
+                .rankScore(scoreResult.getRankScore())
+                .createdAt(OffsetDateTime.now())
+                .updatedAt(OffsetDateTime.now())
+                .build();
+            
+            newsScoreRepository.save(newsScore);
+            
+            log.debug("Saved news item: {} (importance: {})", normalizedTitle, scoreResult.getImportance());
+            
+            return IngestItemResult.builder()
+                .saved(true)
+                .newsId(news.getId())
+                .importance(scoreResult.getImportance())
+                .build();
+                
+        } catch (Exception e) {
+            log.error("Failed to save news item: '{}'", normalizedTitle, e);
+            throw e; // Re-throw to trigger transaction rollback
+        }
     }
     
     private RssProperties.RssSource findSourceConfig(String sourceName) {
@@ -251,6 +285,7 @@ public class NewsIngestService {
         @lombok.Builder.Default
         private boolean skipped = false;
         private String reason;
+        private String error;
         private Long newsId;
         private Double importance;
     }
