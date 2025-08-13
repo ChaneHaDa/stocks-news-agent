@@ -1,0 +1,9 @@
+{
+  "created_at": "2025-08-13T10:36:27.744995",
+  "total_samples": 600,
+  "positive_samples": 300,
+  "negative_samples": 300,
+  "feature_dim": 562,
+  "tfidf_features": 1000,
+  "numerical_features": 6
+}
