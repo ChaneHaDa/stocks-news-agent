@@ -4,109 +4,152 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a monorepo for a Korean stock news aggregation and scoring service with a Spring Boot backend and Next.js frontend. The system currently serves mock data and is designed to eventually collect real news, generate AI summaries, and score articles for importance.
+This is a monorepo for a Korean stock news aggregation and scoring service with a microservices architecture. The system collects real Korean financial news via RSS, scores articles for importance using ML models, and provides a sophisticated ranking system with diversity filtering.
 
 ## Architecture
 
-### Monorepo Structure
-- `services/api/` - Spring Boot backend serving news data
-- `web/` - Next.js frontend displaying news cards
-- `contracts/` - OpenAPI specifications and JSON schemas
+### Microservices Structure
+- `services/api/` - Spring Boot backend (main API gateway, port 8000)
+- `ml/serving/` - FastAPI ML service (importance, summarization, embeddings, port 8001)
+- `web/` - Next.js frontend (port 3000)
+- `contracts/` - OpenAPI specifications and shared schemas
 - Root level contains Docker orchestration files
 
-### Data Flow
-1. Frontend fetches news from `/news/top` endpoint
-2. API returns structured NewsItem objects with importance scoring
-3. Frontend renders news cards with ticker chips and reason labels
+### Service Communication Flow
+1. **API Service** collects news via RSS feeds and stores in H2/PostgreSQL
+2. **API Service** calls **ML Service** for importance scoring and summarization
+3. **API Service** applies advanced ranking with MMR diversity filtering
+4. **Frontend** fetches ranked news from `/news/top` endpoint
+5. **Frontend** renders news cards with importance scores and reason chips
 
 ### Core Data Model
-The `NewsItem` schema defines the central data structure:
-- Basic metadata: id, source, title, url, published_at
-- Stock relevance: tickers array (6-digit Korean stock codes)
-- AI analysis: summary (AI-generated), importance (0-1 score)
-- Scoring breakdown: reason object with source_weight, tickers_hit, keywords_hit, freshness
+The system processes Korean financial news with:
+- **News Entity**: Basic metadata (id, source, title, body, published_at, tickers)
+- **NewsScore Entity**: ML-generated scores (importance, rank_score, reason_json)
+- **Advanced Ranking**: `rank_score = 0.45*importance + 0.25*recency + 0.25*relevance + 0.05*novelty`
+- **Diversity Filtering**: MMR algorithm limiting duplicate topics to ≤2 items per cluster
 
 ## Development Commands
 
-### Full Stack (Docker)
+### Full Stack (Docker) - Recommended
 ```bash
-# Build and start all services
+# Build and start all services (API + ML + Web)
 docker compose up --build
 
 # Background mode
 docker compose up -d --build
 
-# View logs
-docker compose logs -f [web|api]
+# View logs for specific service
+docker compose logs -f [web|api|ml-service]
 
 # Stop services
 docker compose down
 ```
 
-### API Development
+### API Service (Spring Boot)
 ```bash
 cd services/api
-./gradlew bootJar                    # Build
-java -jar build/libs/news-agent-api.jar    # Run
+./gradlew bootRun                    # Development mode
+./gradlew test                       # Run tests
+./gradlew bootJar                    # Build JAR
+./gradlew build                      # Full build with tests
 
-# Or for development
-./gradlew bootRun
+# Manual news collection trigger
+curl -X POST http://localhost:8000/admin/ingest
+```
+
+### ML Service (FastAPI)
+```bash
+cd ml/serving
+pip install -r requirements.txt     # Install dependencies
+uvicorn ml_service.main:app --reload # Development mode
+pytest                               # Run tests
+
+# Check ML service health
+curl http://localhost:8001/admin/health
+
+# Test ML endpoints
+curl -X POST http://localhost:8001/v1/importance:score \
+  -H "Content-Type: application/json" \
+  -d '{"items":[{"id":"1","title":"test","body":"test","source":"test","published_at":"2024-01-01T00:00:00Z"}]}'
 ```
 
 ### Frontend Development
 ```bash
 cd web
 npm install
-npm run dev      # Development server
+npm run dev      # Development server (port 3000)
 npm run build    # Production build
 npm run lint     # ESLint check
 ```
 
 ## Key Implementation Details
 
-### API Service
-- Spring Boot with CORS enabled for development
-- Health check endpoint at `/healthz` 
-- OpenAPI documentation at `/docs` (Swagger UI)
-- Mock data returns 5 sample news items with Korean content
-- Uses Korean stock ticker format (6-digit codes like 005930 for Samsung)
-- Importance scoring uses multiple factors combined into reason object
-- Gradle-based build system with multi-stage Docker builds
+### API Service (Spring Boot)
+- **RSS Collection**: Automated news collection every 10 minutes from Korean financial sources
+- **ML Integration**: HTTP client with Circuit Breaker (Resilience4j) calling ML service
+- **Advanced Ranking**: 4-component formula with MMR diversity filtering via `DiversityService`
+- **Caching**: Caffeine cache for ML responses (importance: 5min, summaries: 24hr)
+- **Fallback**: Rule-based scoring when ML service is unavailable
+- **Database**: H2 in-memory for development, PostgreSQL for production
+- **Health Checks**: `/healthz` endpoint with dependency monitoring
 
-### Frontend Service
-- Next.js 14 with TypeScript and Tailwind CSS
-- Single page application displaying news cards
-- Fetches API URL from `NEXT_PUBLIC_API_URL` environment variable
-- Displays importance scores, stock tickers, and top 3 scoring reasons
-- Korean localized date formatting
+### ML Service (FastAPI)
+- **Mock Implementation**: Currently serves mock responses for development
+- **Structured Logging**: JSON format with request tracing
+- **Prometheus Metrics**: Request counts, latencies, model performance
+- **Model Manager**: Lifecycle management for importance, summarization, embedding models
+- **Health Endpoint**: `/admin/health` with model status and reload capability
+- **Configuration**: Environment-based feature flags and model paths
+
+### Frontend Service (Next.js)
+- **Real-time Updates**: Displays live Korean financial news with importance scores
+- **Responsive UI**: News cards with ticker chips, importance scores, and reason labels
+- **Advanced Filtering**: Sort by rank/time, diversity toggle, ticker filtering
+- **Korean Localization**: Date formatting and content display optimized for Korean users
+
+### Advanced Ranking System
+- **Enhanced Formula**: Combines importance, recency, relevance, and novelty factors
+- **MMR Diversity**: Maximal Marginal Relevance algorithm (λ=0.7) prevents topic clustering
+- **Similarity Detection**: Jaccard coefficient with Korean stop-word filtering
+- **Topic Clustering**: Groups similar articles, limits exposure to 2 per cluster
+- **Configurable Sorting**: API supports both ranking and chronological ordering
+
+### ML Service Integration Patterns
+- **Circuit Breaker**: 50% failure threshold, 30s wait time in open state
+- **Retry Logic**: Exponential backoff with max 3 attempts
+- **Graceful Degradation**: Falls back to rule-based scoring when ML unavailable
+- **Contract-First**: OpenAPI schemas ensure type safety between services
+- **Feature Flags**: Runtime enable/disable for importance, summarization, embedding
 
 ### Environment Variables
-- `NEXT_PUBLIC_API_URL`: API endpoint URL for frontend (default: http://localhost:8000)
-- `NODE_ENV`: Node.js environment mode
-- `JAVA_OPTS`: JVM options for API service (e.g., -Xmx512m -Xms256m)
+Key configuration for Docker Compose deployment:
+- `ML_SERVICE_URL`: Internal ML service URL (http://ml-service:8001)
+- `NEXT_PUBLIC_API_URL`: Public API URL for browser (http://localhost:8000)
+- `ENABLE_IMPORTANCE/SUMMARIZE/EMBED`: ML service feature flags
+- `RSS_COLLECTION_ENABLED`: Toggle for automated news collection
 
-### Docker Configuration
-- API service includes health check using wget
-- Web service depends on API health check before starting
-- Services communicate via Docker bridge network
-- API accessible on port 8000, frontend on port 3000
+### Port Allocation
+- **3000**: Next.js Frontend (public)
+- **8000**: Spring Boot API (public)
+- **8001**: FastAPI ML Service (internal)
 
-## Current State
+## Current State (M1 Complete)
 
-This is a Day 1 prototype with:
-- ✅ Working API with mock endpoints
-- ✅ Functional UI displaying news cards  
-- ✅ Docker containerization
-- ✅ OpenAPI specification
-- 🔄 Ready for real news pipeline integration
-- 🔄 Ready for AI summarization system
-- 🔄 Ready for database integration
+Production-ready microservices architecture with:
+- ✅ **Real RSS Collection**: Korean financial news from major sources
+- ✅ **ML Service Architecture**: FastAPI with mock ML endpoints
+- ✅ **Advanced Ranking**: 4-component scoring with MMR diversity
+- ✅ **Resilient Integration**: Circuit breaker, caching, fallback patterns
+- ✅ **Monitoring**: Prometheus metrics, structured logging, health checks
+- ✅ **Container Orchestration**: Docker Compose with service dependencies
+- 🔄 **Ready for M2**: Real ML model integration (LightGBM, sentence-transformers)
 
 ## Code Conventions
 
-- API uses Spring Boot with DTOs and proper REST controllers
-- Frontend uses TypeScript strict mode with proper interfaces
-- Korean content mixed with English variable names
-- Stock tickers use Korean format (6-digit codes)
-- Importance scores are floats between 0-1
-- Timestamps use ISO 8601 format with UTC timezone
+- **Korean Content**: Mixed Korean article content with English code/variable names
+- **Stock Tickers**: 6-digit Korean format (005930=Samsung, 035720=Kakao)
+- **Scoring**: Normalized importance scores (0-1), rank scores (0-1)
+- **API Contracts**: OpenAPI-first with shared schemas in `/contracts`
+- **Error Handling**: Graceful degradation with meaningful fallbacks
+- **Commit Style**: Feature-based commits with Korean descriptions for user-facing changes
