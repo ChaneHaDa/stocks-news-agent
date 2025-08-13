@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: news-agent-api
+  profiles:
+    include: resilience
   
   # Database Configuration
   datasource:
