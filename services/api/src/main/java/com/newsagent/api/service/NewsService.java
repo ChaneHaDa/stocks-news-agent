@@ -23,6 +23,7 @@ public class NewsService {
     private final NewsRepository newsRepository;
     private final TickerMatcher tickerMatcher;
     private final DiversityService diversityService;
+    private final MlClient mlClient;
     
     public List<NewsItem> getTopNews(int limit, Set<String> tickerFilters, String lang, OffsetDateTime since) {
         return getTopNews(limit, tickerFilters, lang, since, "rank", true);
@@ -113,21 +114,36 @@ public class NewsService {
     }
     
     private List<NewsItem> convertToNewsItems(List<News> newsList) {
-        return newsList.stream()
-            .map(this::convertToNewsItem)
-            .collect(Collectors.toList());
+        // For top N items (e.g., 30), call ML service for summaries
+        int summaryLimit = Math.min(30, newsList.size());
+        
+        List<NewsItem> result = new ArrayList<>();
+        
+        for (int i = 0; i < newsList.size(); i++) {
+            News news = newsList.get(i);
+            boolean generateSummary = i < summaryLimit; // Only for top items
+            NewsItem item = convertToNewsItem(news, generateSummary);
+            result.add(item);
+        }
+        
+        return result;
     }
     
     private NewsItem convertToNewsItem(News news) {
+        return convertToNewsItem(news, false); // Default: no ML summary
+    }
+    
+    private NewsItem convertToNewsItem(News news, boolean generateMlSummary) {
         Set<String> tickers = tickerMatcher.findTickers(news.getBody());
+        List<String> tickerList = new ArrayList<>(tickers);
+        
+        // Get or calculate importance score via ML
+        Double importance = getImportanceScore(news);
+        
+        // Get or generate summary
+        String summary = getSummary(news, tickerList, generateMlSummary);
         
         ImportanceReason reason = extractImportanceReason(news);
-        
-        // Create summary from body (first 240 characters)
-        String summary = createSummary(news.getBody());
-        
-        Double importance = news.getNewsScore() != null ? 
-            news.getNewsScore().getImportance() : 0.0;
         
         return new NewsItem(
             String.valueOf(news.getId()),
@@ -135,11 +151,81 @@ public class NewsService {
             news.getTitle(),
             news.getUrl(),
             news.getPublishedAt() != null ? news.getPublishedAt().toInstant() : null,
-            new ArrayList<>(tickers),
+            tickerList,
             summary,
             importance,
             reason
         );
+    }
+    
+    private Double getImportanceScore(News news) {
+        // First check if we already have ML-generated score in DB
+        if (news.getNewsScore() != null && news.getNewsScore().getImportanceP() != null) {
+            log.debug("Using cached ML importance score for news: {}", news.getId());
+            return news.getNewsScore().getImportanceP();
+        }
+        
+        // Try to get ML importance score
+        try {
+            Optional<Double> mlImportance = mlClient.getImportanceScore(news);
+            if (mlImportance.isPresent()) {
+                Double score = mlImportance.get();
+                log.debug("Got ML importance score {} for news: {}", score, news.getId());
+                
+                // Save to DB for future use (in a real implementation, you'd do this async)
+                updateImportanceScore(news, score);
+                
+                return score;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to get ML importance score for news: {}, using fallback", news.getId(), e);
+        }
+        
+        // Fallback to existing rule-based score
+        return news.getNewsScore() != null ? news.getNewsScore().getImportance() : 0.5;
+    }
+    
+    private String getSummary(News news, List<String> tickers, boolean generateMlSummary) {
+        // First check if we already have ML-generated summary in DB
+        if (news.getNewsScore() != null && news.getNewsScore().getSummary() != null) {
+            log.debug("Using cached ML summary for news: {}", news.getId());
+            return news.getNewsScore().getSummary();
+        }
+        
+        // Generate ML summary only for top articles
+        if (generateMlSummary) {
+            try {
+                Optional<String> mlSummary = mlClient.getSummary(news, tickers);
+                if (mlSummary.isPresent()) {
+                    String summary = mlSummary.get();
+                    log.debug("Got ML summary for news: {}", news.getId());
+                    
+                    // Save to DB for future use (in a real implementation, you'd do this async)
+                    updateSummary(news, summary);
+                    
+                    return summary;
+                }
+            } catch (Exception e) {
+                log.warn("Failed to get ML summary for news: {}, using fallback", news.getId(), e);
+            }
+        }
+        
+        // Fallback to simple extractive summary
+        return createSummary(news.getBody());
+    }
+    
+    private void updateImportanceScore(News news, Double score) {
+        // In a real implementation, this would be done asynchronously
+        // For now, just log that we would update
+        log.debug("Would update importance score {} for news: {}", score, news.getId());
+        // TODO: Async update to database
+    }
+    
+    private void updateSummary(News news, String summary) {
+        // In a real implementation, this would be done asynchronously
+        // For now, just log that we would update
+        log.debug("Would update summary for news: {}", news.getId());
+        // TODO: Async update to database
     }
     
     private ImportanceReason extractImportanceReason(News news) {

@@ -34,6 +34,18 @@ public class NewsScore {
     @Column(nullable = false)
     private Double importance;
     
+    // ML-generated importance score
+    @Column(name = "importance_p")
+    private Double importanceP;
+    
+    // ML model version used
+    @Column(name = "model_version", length = 50)
+    private String modelVersion;
+    
+    // AI-generated summary
+    @Column(name = "summary", length = 1000)
+    private String summary;
+    
     @Column(name = "reason_json", length = 2000)
     private String reasonJson;
     
