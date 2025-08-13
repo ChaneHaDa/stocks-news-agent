@@ -1,0 +1,67 @@
+# OpenAPI Code Generation Configuration
+# This file defines how to generate client/server code from our API specs
+
+generators:
+  # Java client for Spring Boot service
+  java-client:
+    generator: java
+    input: ml-api.yml
+    output: ../services/api/src/main/java/generated
+    config:
+      package: com.newsagent.ml.client
+      library: resttemplate
+      dateLibrary: java8
+      useBeanValidation: true
+      performBeanValidation: true
+      serializationLibrary: jackson
+      
+  # Python server stubs for FastAPI
+  python-server:
+    generator: python-fastapi
+    input: ml-api.yml  
+    output: ../ml/serving/generated
+    config:
+      packageName: ml_service
+      packageVersion: 0.1.0
+      
+  # TypeScript types for frontend
+  typescript-client:
+    generator: typescript-fetch
+    input: openapi.yml
+    output: ../web/src/generated
+    config:
+      npmName: news-agent-api
+      supportsES6: true
+      
+# Validation rules
+validation:
+  rules:
+    - no-untyped-additional-properties
+    - require-descriptions
+    - max-path-length-100
+    - require-response-examples
+    
+# Build targets  
+build:
+  targets:
+    - name: java-client
+      command: "cd ../services/api && gradle build"
+    - name: python-server  
+      command: "cd ../ml/serving && pip install -e ."
+    - name: typescript-client
+      command: "cd ../web && npm run build"
+      
+# Environment-specific overrides
+environments:
+  development:
+    servers:
+      - url: http://localhost:8001
+        description: Local ML service
+  staging:
+    servers:
+      - url: http://ml-service.staging:8001
+        description: Staging ML service
+  production:
+    servers:
+      - url: https://ml-api.newsagent.com
+        description: Production ML service

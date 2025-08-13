@@ -1,0 +1,326 @@
+openapi: 3.0.3
+info:
+  title: ML Service API
+  version: 0.1.0
+  description: Machine Learning services for news importance, summarization, and embedding
+servers:
+  - url: http://localhost:8001
+    description: Local ML service
+
+paths:
+  /admin/health:
+    get:
+      summary: Health check for ML service
+      responses:
+        '200':
+          description: ML service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Service unavailable (models not loaded)
+
+  /admin/reload:
+    post:
+      summary: Reload ML models
+      parameters:
+        - name: version
+          in: query
+          description: Model version to load
+          schema:
+            type: string
+            example: "v1.2.3"
+      responses:
+        '200':
+          description: Models reloaded successfully
+        '400':
+          description: Invalid version specified
+
+  /v1/importance:score:
+    post:
+      summary: Score news articles for importance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportanceRequest'
+      responses:
+        '200':
+          description: Importance scores calculated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportanceResponse'
+        '503':
+          description: Model not available
+
+  /v1/summarize:
+    post:
+      summary: Generate summaries for news articles
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SummarizeRequest'
+      responses:
+        '200':
+          description: Summaries generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SummarizeResponse'
+
+  /v1/embed:
+    post:
+      summary: Generate embeddings for text
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmbedRequest'
+      responses:
+        '200':
+          description: Embeddings generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmbedResponse'
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: ["healthy", "degraded", "unhealthy"]
+        models:
+          type: object
+          properties:
+            importance:
+              $ref: '#/components/schemas/ModelStatus'
+            summarize:
+              $ref: '#/components/schemas/ModelStatus'
+            embed:
+              $ref: '#/components/schemas/ModelStatus'
+        timestamp:
+          type: string
+          format: date-time
+      required:
+        - status
+        - models
+        - timestamp
+
+    ModelStatus:
+      type: object
+      properties:
+        loaded:
+          type: boolean
+        version:
+          type: string
+        last_loaded:
+          type: string
+          format: date-time
+      required:
+        - loaded
+
+    # Importance Scoring
+    ImportanceRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/NewsArticle'
+          maxItems: 100
+      required:
+        - items
+
+    NewsArticle:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+        source:
+          type: string
+        published_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - body
+        - source
+        - published_at
+
+    ImportanceResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportanceResult'
+        model_version:
+          type: string
+        processed_at:
+          type: string
+          format: date-time
+      required:
+        - results
+        - model_version
+        - processed_at
+
+    ImportanceResult:
+      type: object
+      properties:
+        id:
+          type: string
+        importance_p:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Predicted importance probability
+        features:
+          type: object
+          description: Feature values used for prediction
+          additionalProperties:
+            type: number
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Model confidence score
+      required:
+        - id
+        - importance_p
+
+    # Summarization
+    SummarizeRequest:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+        tickers:
+          type: array
+          items:
+            type: string
+        options:
+          type: object
+          properties:
+            max_length:
+              type: integer
+              default: 240
+            style:
+              type: string
+              enum: ["extractive", "llm"]
+              default: "extractive"
+      required:
+        - id
+        - title
+        - body
+
+    SummarizeResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        summary:
+          type: string
+          maxLength: 300
+        reasons:
+          type: array
+          items:
+            type: string
+          description: Key points from the article
+        policy_flags:
+          type: array
+          items:
+            type: string
+          description: Policy compliance flags
+        model_version:
+          type: string
+        method_used:
+          type: string
+          enum: ["extractive", "llm", "cached"]
+        generated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - summary
+        - model_version
+        - method_used
+        - generated_at
+
+    # Embedding
+    EmbedRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TextItem'
+          maxItems: 50
+      required:
+        - items
+
+    TextItem:
+      type: object
+      properties:
+        id:
+          type: string
+        text:
+          type: string
+          maxLength: 2000
+      required:
+        - id
+        - text
+
+    EmbedResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmbedResult'
+        model_version:
+          type: string
+        dimension:
+          type: integer
+          description: Vector dimension
+        processed_at:
+          type: string
+          format: date-time
+      required:
+        - results
+        - model_version
+        - dimension
+        - processed_at
+
+    EmbedResult:
+      type: object
+      properties:
+        id:
+          type: string
+        vector:
+          type: array
+          items:
+            type: number
+        norm:
+          type: number
+          description: Vector L2 norm
+      required:
+        - id
+        - vector

@@ -1,0 +1,186 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ML Service Common Types",
+  "definitions": {
+    "NewsArticle": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique article identifier"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000,
+          "description": "Article title"
+        },
+        "body": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10000,
+          "description": "Article content"
+        },
+        "source": {
+          "type": "string",
+          "description": "News source name"
+        },
+        "published_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Publication timestamp"
+        }
+      },
+      "required": ["id", "title", "body", "source", "published_at"],
+      "additionalProperties": false
+    },
+    
+    "ModelVersion": {
+      "type": "string",
+      "pattern": "^v\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version for ML models (e.g., v1.2.3)"
+    },
+    
+    "FeatureVector": {
+      "type": "object",
+      "description": "Feature values for ML models",
+      "properties": {
+        "source_weight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "keyword_hits": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ner_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "title_length": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "body_length": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "freshness_hours": {
+          "type": "number",
+          "minimum": 0
+        },
+        "ticker_matches": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": true
+    },
+    
+    "ImportanceScore": {
+      "type": "object",
+      "properties": {
+        "importance_p": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Predicted importance probability"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Model confidence"
+        },
+        "features": {
+          "$ref": "#/definitions/FeatureVector"
+        }
+      },
+      "required": ["importance_p"],
+      "additionalProperties": false
+    },
+    
+    "Summary": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 300,
+          "description": "Generated summary text"
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "maxItems": 5,
+          "description": "Key points extracted"
+        },
+        "policy_flags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["investment_advice", "speculation", "market_manipulation", "clean"]
+          },
+          "description": "Compliance flags"
+        },
+        "method": {
+          "type": "string",
+          "enum": ["extractive", "llm", "cached"],
+          "description": "Summary generation method"
+        }
+      },
+      "required": ["text", "method"],
+      "additionalProperties": false
+    },
+    
+    "Embedding": {
+      "type": "object",
+      "properties": {
+        "vector": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 256,
+          "maxItems": 1024,
+          "description": "Dense vector representation"
+        },
+        "norm": {
+          "type": "number",
+          "minimum": 0,
+          "description": "L2 norm of the vector"
+        }
+      },
+      "required": ["vector"],
+      "additionalProperties": false
+    },
+    
+    "ErrorResponse": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string",
+          "description": "Error message"
+        },
+        "code": {
+          "type": "string",
+          "enum": ["MODEL_NOT_LOADED", "INVALID_INPUT", "PROCESSING_ERROR", "TIMEOUT"]
+        },
+        "details": {
+          "type": "object",
+          "description": "Additional error details"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["error", "code", "timestamp"],
+      "additionalProperties": false
+    }
+  }
+}
