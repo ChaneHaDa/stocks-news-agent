@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 public class DiversityService {
     
     private final ContentNormalizer contentNormalizer;
+    private final EmbeddingService embeddingService;
     
     /**
      * Apply Maximal Marginal Relevance (MMR) to reduce duplicate topics
@@ -77,15 +78,48 @@ public class DiversityService {
     }
     
     /**
-     * Calculate similarity between two news items based on title and content
+     * Calculate similarity between two news items using embeddings and topic information
      */
     public double calculateSimilarity(News news1, News news2) {
-        // Simple similarity based on title overlap and content overlap
+        // Try embedding-based similarity first (most accurate)
+        Optional<Double> embeddingSimilarity = calculateEmbeddingSimilarity(news1, news2);
+        if (embeddingSimilarity.isPresent()) {
+            return embeddingSimilarity.get();
+        }
+        
+        // Fallback to topic-based similarity
+        double topicSimilarity = calculateTopicSimilarity(news1, news2);
+        if (topicSimilarity > 0) {
+            return topicSimilarity;
+        }
+        
+        // Final fallback to text-based similarity
         double titleSimilarity = calculateTextSimilarity(news1.getTitle(), news2.getTitle());
         double contentSimilarity = calculateTextSimilarity(news1.getBody(), news2.getBody());
         
         // Weight title more heavily
         return 0.7 * titleSimilarity + 0.3 * contentSimilarity;
+    }
+    
+    /**
+     * Calculate embedding-based similarity
+     */
+    private Optional<Double> calculateEmbeddingSimilarity(News news1, News news2) {
+        try {
+            return embeddingService.calculateSimilarity(news1.getId(), news2.getId());
+        } catch (Exception e) {
+            log.debug("Failed to calculate embedding similarity for news {} and {}: {}", 
+                news1.getId(), news2.getId(), e.getMessage());
+            return Optional.empty();
+        }
+    }
+    
+    /**
+     * Calculate topic-based similarity
+     */
+    private double calculateTopicSimilarity(News news1, News news2) {
+        // TODO: Implement topic-based similarity after NewsTopic entity is properly set up
+        return 0.0;
     }
     
     private double calculateTextSimilarity(String text1, String text2) {
@@ -175,5 +209,85 @@ public class DiversityService {
         }
         
         return clusters;
+    }
+    
+    /**
+     * Apply topic-aware diversity filtering
+     * Limits the number of articles per topic to ensure diversity
+     */
+    public List<News> applyTopicDiversityFilter(List<News> newsList, int maxPerTopic) {
+        Map<String, List<News>> topicGroups = new HashMap<>();
+        List<News> newsWithoutTopic = new ArrayList<>();
+        
+        // Group news by topic (temporarily disabled until NewsTopic entity is set up)
+        for (News news : newsList) {
+            // TODO: Implement topic grouping after NewsTopic entity is properly set up
+            newsWithoutTopic.add(news);
+        }
+        
+        List<News> result = new ArrayList<>();
+        
+        // Add limited number from each topic
+        for (List<News> topicNews : topicGroups.values()) {
+            // Sort by rank score within topic
+            topicNews.sort((a, b) -> {
+                double scoreA = a.getNewsScore() != null ? a.getNewsScore().getRankScore() : 0.0;
+                double scoreB = b.getNewsScore() != null ? b.getNewsScore().getRankScore() : 0.0;
+                return Double.compare(scoreB, scoreA); // Descending
+            });
+            
+            // Take top articles from this topic
+            int count = Math.min(maxPerTopic, topicNews.size());
+            result.addAll(topicNews.subList(0, count));
+        }
+        
+        // Add news without topic information
+        result.addAll(newsWithoutTopic);
+        
+        // Sort final result by rank score
+        result.sort((a, b) -> {
+            double scoreA = a.getNewsScore() != null ? a.getNewsScore().getRankScore() : 0.0;
+            double scoreB = b.getNewsScore() != null ? b.getNewsScore().getRankScore() : 0.0;
+            return Double.compare(scoreB, scoreA); // Descending
+        });
+        
+        return result;
+    }
+    
+    /**
+     * Apply combined MMR and topic diversity filtering
+     */
+    public List<News> applyAdvancedDiversityFilter(List<News> newsList, int targetSize, 
+                                                   double mmrLambda, int maxPerTopic) {
+        
+        // First apply topic diversity filter
+        List<News> topicFiltered = applyTopicDiversityFilter(newsList, maxPerTopic);
+        
+        // Then apply MMR for final selection
+        return applyMMR(topicFiltered, targetSize, mmrLambda);
+    }
+    
+    /**
+     * Calculate diversity score for a list of news articles
+     */
+    public double calculateDiversityScore(List<News> newsList) {
+        if (newsList.size() <= 1) {
+            return 1.0;
+        }
+        
+        double totalSimilarity = 0.0;
+        int comparisons = 0;
+        
+        for (int i = 0; i < newsList.size(); i++) {
+            for (int j = i + 1; j < newsList.size(); j++) {
+                totalSimilarity += calculateSimilarity(newsList.get(i), newsList.get(j));
+                comparisons++;
+            }
+        }
+        
+        double averageSimilarity = comparisons > 0 ? totalSimilarity / comparisons : 0.0;
+        
+        // Diversity is inverse of similarity (1.0 = completely diverse, 0.0 = all identical)
+        return 1.0 - averageSimilarity;
     }
 }
