@@ -104,6 +104,9 @@ scheduling:
   rss-collection:
     cron: ${RSS_COLLECTION_CRON:0 */10 * * * *}  # Every 10 minutes
     enabled: ${RSS_COLLECTION_SCHEDULED:true}
+  topic-clustering:
+    cron: ${TOPIC_CLUSTERING_CRON:0 0 */6 * * *}  # Every 6 hours
+    enabled: ${TOPIC_CLUSTERING_ENABLED:true}
 
 # Resilience4j Configuration
 resilience4j:

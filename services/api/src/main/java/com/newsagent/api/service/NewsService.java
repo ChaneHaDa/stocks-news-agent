@@ -24,12 +24,17 @@ public class NewsService {
     private final TickerMatcher tickerMatcher;
     private final DiversityService diversityService;
     private final MlClient mlClient;
+    private final PersonalizationService personalizationService;
     
     public List<NewsItem> getTopNews(int limit, Set<String> tickerFilters, String lang, OffsetDateTime since) {
-        return getTopNews(limit, tickerFilters, lang, since, "rank", true);
+        return getTopNews(limit, tickerFilters, lang, since, "rank", true, false, null);
     }
     
     public List<NewsItem> getTopNews(int limit, Set<String> tickerFilters, String lang, OffsetDateTime since, String sort, boolean applyDiversity) {
+        return getTopNews(limit, tickerFilters, lang, since, sort, applyDiversity, false, null);
+    }
+    
+    public List<NewsItem> getTopNews(int limit, Set<String> tickerFilters, String lang, OffsetDateTime since, String sort, boolean applyDiversity, boolean personalized, String userId) {
         // Fetch more items initially for diversity filtering
         int fetchLimit = applyDiversity ? Math.min(limit * 3, 100) : limit;
         Pageable pageable = PageRequest.of(0, fetchLimit);
@@ -47,6 +52,12 @@ public class NewsService {
                     return foundTickers.stream().anyMatch(tickerFilters::contains);
                 })
                 .collect(Collectors.toList());
+            
+            // Apply personalized ranking if requested
+            if (personalized && userId != null && !userId.trim().isEmpty()) {
+                log.debug("Applying personalized ranking for user: {} (with ticker filters)", userId);
+                filteredNews = personalizationService.applyPersonalizedRanking(filteredNews, userId);
+            }
             
             // Apply diversity if requested
             if (applyDiversity && filteredNews.size() > limit) {
@@ -67,6 +78,12 @@ public class NewsService {
             
             List<News> newsList = newsPage.getContent();
             
+            // Apply personalized ranking if requested
+            if (personalized && userId != null && !userId.trim().isEmpty()) {
+                log.debug("Applying personalized ranking for user: {}", userId);
+                newsList = personalizationService.applyPersonalizedRanking(newsList, userId);
+            }
+            
             // Apply diversity if requested
             if (applyDiversity && newsList.size() > limit) {
                 newsList = applyDiversityFiltering(newsList, limit);
@@ -79,33 +96,20 @@ public class NewsService {
     }
     
     private List<News> applyDiversityFiltering(List<News> newsList, int targetSize) {
-        // Apply MMR with lambda=0.7 (70% relevance, 30% diversity)
-        List<News> diverseNews = diversityService.applyMMR(newsList, targetSize, 0.7);
+        // Use advanced diversity filtering with topic awareness
+        // MMR lambda=0.7 (70% relevance, 30% diversity)
+        // Max 2 articles per topic
+        List<News> diverseNews = diversityService.applyAdvancedDiversityFilter(
+            newsList, targetSize, 0.7, 2);
         
-        // Ensure we don't have more than 2 items from the same topic cluster
-        Map<Integer, List<News>> clusters = diversityService.clusterByTopic(diverseNews, 0.6);
+        log.debug("Applied advanced diversity filtering: {} -> {} articles", 
+            newsList.size(), diverseNews.size());
         
-        List<News> finalList = new ArrayList<>();
-        for (List<News> cluster : clusters.values()) {
-            // Take at most 2 items from each cluster
-            int itemsToTake = Math.min(2, cluster.size());
-            finalList.addAll(cluster.subList(0, itemsToTake));
-            
-            if (finalList.size() >= targetSize) {
-                break;
-            }
-        }
+        // Calculate and log diversity score for monitoring
+        double diversityScore = diversityService.calculateDiversityScore(diverseNews);
+        log.debug("Diversity score: {}", diversityScore);
         
-        // If we still need more items and have space, add remaining items
-        if (finalList.size() < targetSize) {
-            for (News news : diverseNews) {
-                if (!finalList.contains(news) && finalList.size() < targetSize) {
-                    finalList.add(news);
-                }
-            }
-        }
-        
-        return finalList.subList(0, Math.min(targetSize, finalList.size()));
+        return diverseNews;
     }
     
     public Optional<NewsItem> getNewsById(Long id) {

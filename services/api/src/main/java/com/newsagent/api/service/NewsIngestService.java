@@ -30,6 +30,7 @@ public class NewsIngestService {
     private final RssClient rssClient;
     private final ContentNormalizer contentNormalizer;
     private final ImportanceScorer importanceScorer;
+    private final EmbeddingService embeddingService;
     private final NewsRepository newsRepository;
     private final NewsScoreRepository newsScoreRepository;
     private final RssProperties rssProperties;
@@ -227,6 +228,18 @@ public class NewsIngestService {
                 .build();
             
             newsScoreRepository.save(newsScore);
+            
+            // Generate embedding asynchronously (best effort) - temporarily disabled
+            // TODO: Re-enable after fixing transaction isolation
+            /*
+            try {
+                embeddingService.generateEmbedding(news);
+                log.debug("Generated embedding for news: {}", news.getId());
+            } catch (Exception e) {
+                log.warn("Failed to generate embedding for news: {} - {}", news.getId(), e.getMessage());
+                // Don't fail the entire ingestion if embedding fails
+            }
+            */
             
             log.debug("Saved news item: {} (importance: {})", normalizedTitle, scoreResult.getImportance());
             

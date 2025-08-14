@@ -13,6 +13,8 @@ import org.springframework.stereotype.Service;
 public class NewsScheduler {
     
     private final NewsIngestService newsIngestService;
+    private final TopicClusteringService topicClusteringService;
+    private final EmbeddingService embeddingService;
     
     @Scheduled(cron = "${scheduling.rss-collection.cron:0 */10 * * * *}")
     public void collectNews() {
@@ -30,6 +32,26 @@ public class NewsScheduler {
                 
         } catch (Exception e) {
             log.error("Scheduled news collection failed", e);
+        }
+    }
+    
+    @Scheduled(cron = "${scheduling.topic-clustering.cron:0 0 */6 * * *}")
+    @ConditionalOnProperty(value = "scheduling.topic-clustering.enabled", havingValue = "true", matchIfMissing = true)
+    public void performTopicClustering() {
+        log.info("Starting scheduled topic clustering");
+        
+        try {
+            TopicClusteringService.ClusteringResult result = topicClusteringService.performClustering();
+            
+            log.info("Scheduled topic clustering completed in {}ms: {} articles, {} clusters, {} duplicate groups, {} topics assigned",
+                result.getDurationMillis(),
+                result.getTotalArticles(),
+                result.getClustersGenerated(),
+                result.getDuplicateGroupsFound(),
+                result.getTopicsAssigned());
+                
+        } catch (Exception e) {
+            log.error("Scheduled topic clustering failed", e);
         }
     }
 }
