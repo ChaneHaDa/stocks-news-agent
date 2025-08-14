@@ -137,35 +137,28 @@ public class MlClient {
     
     @CircuitBreaker(name = "ml-service", fallbackMethod = "embedFallback")
     @Retry(name = "ml-service")
-    public Optional<List<Double>> getEmbedding(String text) {
+    public Optional<EmbedResponse> embed(EmbedRequest request) {
         if (!config.isEnableEmbed()) {
             return Optional.empty();
         }
         
         try {
-            log.debug("Getting embedding for text length: {}", text.length());
-            
-            MlRequest.EmbedRequest request = MlRequest.EmbedRequest.builder()
-                .items(List.of(MlRequest.TextItem.builder()
-                    .id("temp")
-                    .text(text)
-                    .build()))
-                .build();
+            log.debug("Getting embeddings for {} items", request.getItems().size());
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<MlRequest.EmbedRequest> entity = new HttpEntity<>(request, headers);
+            HttpEntity<EmbedRequest> entity = new HttpEntity<>(request, headers);
             
-            MlResponse.EmbedResponse response = restTemplate.postForObject(
+            EmbedResponse response = restTemplate.postForObject(
                 config.getBaseUrl() + "/v1/embed",
                 entity,
-                MlResponse.EmbedResponse.class
+                EmbedResponse.class
             );
             
             if (response != null && !response.getResults().isEmpty()) {
-                MlResponse.EmbedResult result = response.getResults().get(0);
-                log.debug("Received embedding with dimension: {}", response.getDimension());
-                return Optional.of(result.getVector());
+                log.debug("Received {} embeddings with dimension: {}", 
+                    response.getResults().size(), response.getDimension());
+                return Optional.of(response);
             }
             
             return Optional.empty();
@@ -215,7 +208,7 @@ public class MlClient {
         return Optional.of(createSimpleSummary(news.getTitle(), news.getBody()));
     }
     
-    private Optional<List<Double>> embedFallback(String text, Exception ex) {
+    private Optional<EmbedResponse> embedFallback(EmbedRequest request, Exception ex) {
         log.warn("Using fallback for embedding, error: {}", ex.getMessage());
         
         // No reliable fallback for embeddings
@@ -269,5 +262,34 @@ public class MlClient {
         }
         
         return summary.toString().trim();
+    }
+    
+    // Embedding DTOs
+    @lombok.Builder
+    @lombok.Data
+    public static class EmbedRequest {
+        private List<TextItem> items;
+    }
+    
+    @lombok.Builder
+    @lombok.Data
+    public static class TextItem {
+        private String id;
+        private String text;
+    }
+    
+    @lombok.Data
+    public static class EmbedResponse {
+        private List<EmbedResult> results;
+        private String modelVersion;
+        private Integer dimension;
+        private Double processedAt;
+    }
+    
+    @lombok.Data
+    public static class EmbedResult {
+        private String id;
+        private List<Float> vector;
+        private Double norm;
     }
 }
