@@ -3,6 +3,8 @@ package com.newsagent.api.controller;
 import com.newsagent.api.config.MlServiceConfig;
 import com.newsagent.api.service.MlClient;
 import com.newsagent.api.service.NewsIngestService;
+import com.newsagent.api.service.TopicClusteringService;
+import com.newsagent.api.service.EmbeddingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +24,8 @@ import java.util.Map;
 public class AdminController {
     
     private final NewsIngestService newsIngestService;
+    private final TopicClusteringService topicClusteringService;
+    private final EmbeddingService embeddingService;
     private final MlServiceConfig mlConfig;
     private final MlClient mlClient;
     
@@ -151,5 +155,42 @@ public class AdminController {
         features.put("timestamp", OffsetDateTime.now());
         
         return ResponseEntity.ok(features);
+    }
+    
+    @PostMapping("/clustering")
+    @Operation(summary = "Manually trigger topic clustering", 
+               description = "Triggers immediate topic clustering for recent news articles")
+    public ResponseEntity<Map<String, Object>> triggerClustering() {
+        log.info("Manual topic clustering triggered");
+        
+        try {
+            TopicClusteringService.ClusteringResult result = topicClusteringService.performClustering();
+            
+            Map<String, Object> response = Map.of(
+                "success", true,
+                "message", "Topic clustering completed",
+                "startTime", result.getStartTime(),
+                "endTime", result.getEndTime(),
+                "durationMs", result.getDurationMillis(),
+                "totalArticles", result.getTotalArticles(),
+                "articlesWithEmbeddings", result.getArticlesWithEmbeddings(),
+                "clustersGenerated", result.getClustersGenerated(),
+                "duplicateGroupsFound", result.getDuplicateGroupsFound(),
+                "topicsAssigned", result.getTopicsAssigned()
+            );
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("Manual topic clustering failed", e);
+            
+            Map<String, Object> errorResponse = Map.of(
+                "success", false,
+                "message", "Topic clustering failed: " + e.getMessage(),
+                "timestamp", OffsetDateTime.now()
+            );
+            
+            return ResponseEntity.internalServerError().body(errorResponse);
+        }
     }
 }

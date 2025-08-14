@@ -3,6 +3,7 @@ package com.newsagent.api.controller;
 import com.newsagent.api.dto.NewsResponse;
 import com.newsagent.api.model.NewsItem;
 import com.newsagent.api.service.NewsService;
+import com.newsagent.api.service.PersonalizationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -28,6 +29,7 @@ import java.util.stream.Collectors;
 public class NewsController {
 
     private final NewsService newsService;
+    private final PersonalizationService personalizationService;
 
     @GetMapping("/top")
     @Operation(summary = "Get top news articles", description = "주요 뉴스 목록을 중요도순 또는 최신순으로 반환합니다. MMR 다양성 필터링 포함.")
@@ -49,10 +51,16 @@ public class NewsController {
             @RequestParam(defaultValue = "rank") String sort,
             
             @Parameter(description = "Apply diversity filtering to reduce duplicate topics", example = "true")
-            @RequestParam(defaultValue = "true") boolean diversity) {
+            @RequestParam(defaultValue = "true") boolean diversity,
+            
+            @Parameter(description = "Enable personalized ranking (requires user ID)", example = "false")
+            @RequestParam(defaultValue = "false") boolean personalized,
+            
+            @Parameter(description = "User ID for personalization (optional)", example = "user123")
+            @RequestParam(required = false) String userId) {
 
-        log.debug("Getting top {} news articles, tickers: {}, lang: {}, hours: {}, sort: {}, diversity: {}", 
-                  n, tickers, lang, hours, sort, diversity);
+        log.debug("Getting top {} news articles, tickers: {}, lang: {}, hours: {}, sort: {}, diversity: {}, personalized: {}, userId: {}", 
+                  n, tickers, lang, hours, sort, diversity, personalized, userId);
 
         // Validate parameters
         if (n > 100) {
@@ -78,9 +86,9 @@ public class NewsController {
         // Calculate since timestamp
         OffsetDateTime since = OffsetDateTime.now().minus(hours, ChronoUnit.HOURS);
 
-        List<NewsItem> items = newsService.getTopNews(n, tickerFilters, lang, since, sort, diversity);
+        List<NewsItem> items = newsService.getTopNews(n, tickerFilters, lang, since, sort, diversity, personalized, userId);
 
-        log.info("Returning {} news articles (sort: {}, diversity: {})", items.size(), sort, diversity);
+        log.info("Returning {} news articles (sort: {}, diversity: {}, personalized: {})", items.size(), sort, diversity, personalized);
         return new NewsResponse(items, null);
     }
 
@@ -101,5 +109,49 @@ public class NewsController {
         } else {
             return ResponseEntity.notFound().build();
         }
+    }
+    
+    @PostMapping("/{id}/click")
+    @Operation(summary = "Record news article click", description = "뉴스 기사 클릭을 기록하여 개인화에 활용합니다.")
+    @ApiResponse(responseCode = "200", description = "Click recorded successfully")
+    public ResponseEntity<Void> recordClick(
+            @Parameter(description = "News article ID")
+            @PathVariable Long id,
+            
+            @Parameter(description = "User ID")
+            @RequestParam String userId,
+            
+            @Parameter(description = "Session ID (optional)")
+            @RequestParam(required = false) String sessionId,
+            
+            @Parameter(description = "Rank position when clicked (optional)")
+            @RequestParam(required = false) Integer position,
+            
+            @Parameter(description = "Importance score when clicked (optional)")
+            @RequestParam(required = false) Double importance,
+            
+            @RequestHeader(value = "User-Agent", required = false) String userAgent,
+            @RequestHeader(value = "X-Forwarded-For", required = false) String xForwardedFor,
+            @RequestHeader(value = "X-Real-IP", required = false) String xRealIP) {
+        
+        // Get client IP address
+        String ipAddress = getClientIpAddress(xForwardedFor, xRealIP);
+        
+        log.debug("Recording click for user {} on news {} at position {}", userId, id, position);
+        
+        personalizationService.recordClick(userId, id, sessionId, userAgent, ipAddress, position, importance);
+        
+        return ResponseEntity.ok().build();
+    }
+    
+    private String getClientIpAddress(String xForwardedFor, String xRealIP) {
+        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+            // X-Forwarded-For can contain multiple IPs, take the first one
+            return xForwardedFor.split(",")[0].trim();
+        }
+        if (xRealIP != null && !xRealIP.isEmpty()) {
+            return xRealIP;
+        }
+        return "unknown";
     }
 }
