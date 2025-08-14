@@ -50,4 +50,10 @@ public interface NewsRepository extends JpaRepository<News, Long> {
     
     @Query("SELECT n FROM News n ORDER BY n.publishedAt DESC")
     Page<News> findByOrderByPublishedAtDesc(Pageable pageable);
+    
+    @Query("SELECT n FROM News n " +
+           "WHERE n.publishedAt >= :since " +
+           "AND EXISTS (SELECT 1 FROM NewsEmbedding ne WHERE ne.news.id = n.id) " +
+           "ORDER BY n.publishedAt DESC")
+    List<News> findRecentNewsWithEmbeddings(@Param("since") OffsetDateTime since);
 }
