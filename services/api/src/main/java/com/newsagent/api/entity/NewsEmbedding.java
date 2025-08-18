@@ -7,6 +7,9 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 
 import java.time.OffsetDateTime;
+import java.util.List;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Entity
 @Table(name = "news_embedding_v2", indexes = {
@@ -51,4 +54,20 @@ public class NewsEmbedding {
     
     @Column(name = "updated_at")
     private OffsetDateTime updatedAt;
+    
+    /**
+     * Get embedding vector as List of Doubles for clustering
+     */
+    public List<Double> getEmbeddingVector() {
+        if (vectorText == null || vectorText.trim().isEmpty()) {
+            return List.of();
+        }
+        
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            return mapper.readValue(vectorText, new TypeReference<List<Double>>() {});
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
 }

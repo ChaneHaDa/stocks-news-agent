@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from ..core.logging import get_logger
 from ..services.model_manager import ModelManager
+from ..services.clustering_service import clustering_service
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -17,6 +18,7 @@ class HealthResponse(BaseModel):
     """Health check response model."""
     status: str
     models: Dict[str, Any]
+    clustering: Optional[Dict[str, Any]] = None
     timestamp: float
 
 
@@ -68,9 +70,13 @@ async def health_check(
         else:
             status = "unhealthy"
         
+        # Add clustering service health
+        clustering_health = clustering_service.health_check()
+        
         response = HealthResponse(
             status=status,
             models=models_status,
+            clustering=clustering_health,
             timestamp=time.time()
         )
         

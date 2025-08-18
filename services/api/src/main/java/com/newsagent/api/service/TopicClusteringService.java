@@ -27,6 +27,8 @@ public class TopicClusteringService {
     private final NewsEmbeddingRepository newsEmbeddingRepository;
     private final NewsTopicRepository newsTopicRepository;
     private final EmbeddingService embeddingService;
+    private final AdvancedClusteringService advancedClusteringService;
+    private final FeatureFlagService featureFlagService;
     private final ObjectMapper objectMapper;
     
     // Clustering parameters
@@ -36,11 +38,70 @@ public class TopicClusteringService {
     private static final int MAX_RECENT_HOURS = 48;          // Only cluster news from last 48 hours
     
     /**
-     * Perform topic clustering on recent news articles
+     * Perform topic clustering on recent news articles using advanced algorithms
      */
     @Transactional
     public ClusteringResult performClustering() {
-        log.info("Starting topic clustering for recent news");
+        log.info("Starting advanced topic clustering for recent news");
+        
+        ClusteringResult result = ClusteringResult.builder()
+            .startTime(OffsetDateTime.now())
+            .build();
+        
+        try {
+            // Check which clustering algorithm to use
+            String algorithm = featureFlagService.getString("clustering.algorithm", "HDBSCAN");
+            boolean useAdvancedClustering = featureFlagService.isEnabled("clustering.advanced.enabled", true);
+            
+            AdvancedClusteringService.AdvancedClusteringResult advancedResult;
+            
+            if (useAdvancedClustering) {
+                // Use advanced clustering algorithms
+                switch (algorithm.toUpperCase()) {
+                    case "HDBSCAN":
+                        advancedResult = advancedClusteringService.performHDBSCANClustering();
+                        break;
+                    case "KMEANS":
+                        // Find optimal cluster count first
+                        AdvancedClusteringService.OptimalClusterResult optimal = 
+                            advancedClusteringService.findOptimalClusters();
+                        int numClusters = optimal.isSuccess() ? optimal.getOptimalClusters() : 5;
+                        
+                        advancedResult = advancedClusteringService.performKMeansMiniBatchClustering(numClusters);
+                        break;
+                    default:
+                        log.warn("Unknown clustering algorithm: {}, falling back to HDBSCAN", algorithm);
+                        advancedResult = advancedClusteringService.performHDBSCANClustering();
+                }
+                
+                // Convert advanced result to legacy format
+                result = convertAdvancedResult(advancedResult);
+                
+            } else {
+                // Fall back to legacy cosine similarity clustering
+                result = performLegacyClustering();
+            }
+            
+            log.info("Clustering completed: {} articles processed, {} clusters created", 
+                result.getTotalArticles(), result.getClustersGenerated());
+            
+            return result;
+            
+        } catch (Exception e) {
+            log.error("Error during clustering", e);
+            return result.toBuilder()
+                .endTime(OffsetDateTime.now())
+                .success(false)
+                .errorMessage("Clustering failed: " + e.getMessage())
+                .build();
+        }
+    }
+    
+    /**
+     * Legacy clustering using cosine similarity (fallback)
+     */
+    private ClusteringResult performLegacyClustering() {
+        log.info("Using legacy cosine similarity clustering");
         
         ClusteringResult result = ClusteringResult.builder()
             .startTime(OffsetDateTime.now())
@@ -430,7 +491,7 @@ public class TopicClusteringService {
         return (double) intersection.size() / union.size();
     }
     
-    @lombok.Builder
+    @lombok.Builder(toBuilder = true)
     @lombok.Data
     public static class ClusteringResult {
         private OffsetDateTime startTime;
@@ -445,7 +506,11 @@ public class TopicClusteringService {
         private int duplicateGroupsFound = 0;
         @lombok.Builder.Default
         private int topicsAssigned = 0;
+        @lombok.Builder.Default
+        private boolean success = true;
         private String error;
+        private String errorMessage;
+        private Map<String, Object> qualityMetrics;
         
         public long getDurationMillis() {
             if (startTime != null && endTime != null) {
@@ -453,5 +518,29 @@ public class TopicClusteringService {
             }
             return 0;
         }
+    }
+    
+    /**
+     * Convert AdvancedClusteringResult to legacy ClusteringResult format
+     */
+    private ClusteringResult convertAdvancedResult(AdvancedClusteringService.AdvancedClusteringResult advancedResult) {
+        return ClusteringResult.builder()
+            .success(advancedResult.isSuccess())
+            .startTime(advancedResult.getStartTime())
+            .endTime(advancedResult.getEndTime())
+            .totalArticles(advancedResult.getArticlesProcessed())
+            .articlesWithEmbeddings(advancedResult.getArticlesProcessed())
+            .clustersGenerated(advancedResult.getClustersCreated())
+            .topicsAssigned(advancedResult.getArticlesProcessed() - advancedResult.getNoisePoints())
+            .duplicateGroupsFound(0) // Advanced clustering doesn't track duplicates separately
+            .qualityMetrics(Map.of(
+                "algorithm", advancedResult.getAlgorithm(),
+                "silhouette_score", advancedResult.getSilhouetteScore(),
+                "davies_bouldin_index", advancedResult.getDaviesBouldinIndex(),
+                "calinski_harabasz_index", advancedResult.getCalinskiHarabaszIndex(),
+                "noise_points", advancedResult.getNoisePoints()
+            ))
+            .errorMessage(advancedResult.isSuccess() ? null : advancedResult.getMessage())
+            .build();
     }
 }
