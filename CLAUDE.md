@@ -180,9 +180,9 @@ Key configuration for Docker Compose deployment:
 - **8000**: Spring Boot API (public)
 - **8001**: FastAPI ML Service (internal)
 
-## Current State (F1 Complete)
+## Current State (F2 Complete)
 
-Production-ready real-time embedding pipeline & vector database system with:
+Production-ready A/B testing system with advanced embedding pipeline & personalization engine:
 
 ### ✅ M1: Microservices Architecture Foundation
 - **Service Separation**: Spring Boot API + FastAPI ML + Next.js Web
@@ -217,10 +217,21 @@ Production-ready real-time embedding pipeline & vector database system with:
 - **Database Migration**: V6 schema with news_embedding_v2 table (768-dimension)
 - **Async Processing**: Event listeners for non-blocking embedding generation
 
-### 🔄 F2+ Next: A/B Testing & Advanced AI
-- **F2**: A/B testing framework (anonymous user bucketing, CTR/dwell metrics)
-- **F3**: Advanced clustering algorithms (HDBSCAN, K-means mini-batch)
+### ✅ F2: A/B Testing System (Complete)
+- **Experiment Bucketing**: SHA-256 hash-based consistent user assignment (50/50 split)
+- **A/B Ranking Variants**: Control (standard) vs Treatment (personalized) algorithms
+- **Experiment Logging**: Event-driven impression/click tracking with experiment metadata
+- **Metrics Collection**: Automated CTR, dwell time, diversity, personalization scoring
+- **Auto-Stop System**: 5%p CTR degradation threshold with 24-hour monitoring
+- **Feature Flag Integration**: Runtime experiment control and graceful degradation
+- **Database Schema**: V7 migration with experiment tables and daily metrics aggregation
+- **API Endpoints**: `/news/top/experimental` with experiment metadata response
+- **Production Ready**: 6-hour monitoring cycles, statistical significance validation
+
+### 🔄 F3+ Next: Advanced AI & Analytics
+- **F3**: Advanced clustering algorithms (HDBSCAN, K-means mini-batch)  
 - **F4**: Deep learning embeddings (Ko-BERT, RoBERTa with ONNX optimization)
+- **F5**: Multi-armed bandit optimization and real-time experiment adaptation
 
 ## Code Conventions
 

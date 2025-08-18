@@ -120,6 +120,48 @@ public class FeatureFlagService {
     }
     
     /**
+     * Set flag value programmatically
+     */
+    @Transactional
+    @CacheEvict(value = "featureFlags", key = "#flagKey")
+    public void setFeatureFlag(String flagKey, boolean value) {
+        setFeatureFlag(flagKey, String.valueOf(value), "auto-stop-system");
+    }
+    
+    /**
+     * Set flag value with updater
+     */
+    @Transactional
+    @CacheEvict(value = "featureFlags", key = "#flagKey")
+    public void setFeatureFlag(String flagKey, String value, String updatedBy) {
+        Optional<FeatureFlag> flagOpt = featureFlagRepository.findByFlagKey(flagKey);
+        
+        if (flagOpt.isPresent()) {
+            FeatureFlag flag = flagOpt.get();
+            flag.updateValue(value, updatedBy);
+            featureFlagRepository.save(flag);
+            log.info("Updated feature flag: {} to {}", flagKey, value);
+        } else {
+            // Create new flag if it doesn't exist
+            FeatureFlag newFlag = FeatureFlag.builder()
+                .flagKey(flagKey)
+                .name(flagKey.replace(".", " ").toUpperCase())
+                .description("Auto-created flag")
+                .category("experiment")
+                .valueType("boolean")
+                .flagValue(value)
+                .defaultValue("true")
+                .isEnabled(true)
+                .environment("all")
+                .createdBy(updatedBy)
+                .build();
+            
+            featureFlagRepository.save(newFlag);
+            log.info("Created and set feature flag: {} to {}", flagKey, value);
+        }
+    }
+    
+    /**
      * Toggle flag on/off
      */
     @Transactional

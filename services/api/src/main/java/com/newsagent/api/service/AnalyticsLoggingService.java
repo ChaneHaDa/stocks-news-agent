@@ -3,6 +3,7 @@ package com.newsagent.api.service;
 import com.newsagent.api.entity.*;
 import com.newsagent.api.repository.ImpressionLogRepository;
 import com.newsagent.api.repository.ClickLogRepository;
+import com.newsagent.api.repository.NewsRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -24,6 +25,7 @@ public class AnalyticsLoggingService {
     
     private final ImpressionLogRepository impressionLogRepository;
     private final ClickLogRepository clickLogRepository;
+    private final NewsRepository newsRepository;
     
     /**
      * Log news impressions (when articles are shown to user)
@@ -96,6 +98,106 @@ public class AnalyticsLoggingService {
         } catch (Exception e) {
             log.error("Failed to log click for anon_id: {} on news_id: {}", 
                 request.getAnonId(), request.getNewsId(), e);
+        }
+    }
+    
+    /**
+     * F2: Log impression with experiment metadata
+     * Enhanced version for A/B testing with all required fields
+     */
+    @Async
+    @Transactional
+    public void logImpressionWithExperiment(
+            String anonId,
+            Long newsId,
+            int position,
+            String pageType,
+            String experimentKey,
+            String variant,
+            double importanceScore,
+            double rankScore,
+            boolean personalized,
+            boolean diversityApplied
+    ) {
+        try {
+            ImpressionLog impression = ImpressionLog.builder()
+                .anonId(anonId)
+                .newsId(newsId)
+                .sessionId(null) // Could be passed as parameter if needed
+                .position(position)
+                .pageType(pageType)
+                .experimentKey(experimentKey)
+                .variant(variant)
+                .importanceScore(importanceScore)
+                .rankScore(rankScore)
+                .personalized(personalized)
+                .diversityApplied(diversityApplied)
+                .userAgent(null) // Could be passed from request context
+                .ipAddress(null) // Could be passed from request context
+                .referer(null)   // Could be passed from request context
+                .timestamp(OffsetDateTime.now())
+                .datePartition(OffsetDateTime.now().toLocalDate().toString())
+                .build();
+            
+            impressionLogRepository.save(impression);
+            
+            log.debug("Logged experiment impression: user={}, news={}, exp={}, variant={}, pos={}", 
+                anonId, newsId, experimentKey, variant, position);
+                
+        } catch (Exception e) {
+            log.error("Failed to log experiment impression: user={}, news={}, exp={}, variant={}", 
+                anonId, newsId, experimentKey, variant, e);
+        }
+    }
+    
+    /**
+     * F2: Log click with experiment metadata and dwell time
+     */
+    @Async
+    @Transactional
+    public void logClickWithExperiment(
+            String anonId,
+            Long newsId,
+            String experimentKey,
+            String variant,
+            long dwellTimeMs,
+            int position,
+            double importanceScore,
+            boolean personalized,
+            String sessionId,
+            String userAgent,
+            String ipAddress
+    ) {
+        try {
+            // Get News entity by ID
+            News news = newsRepository.findById(newsId)
+                .orElseThrow(() -> new IllegalArgumentException("News not found: " + newsId));
+            
+            ClickLog clickLog = ClickLog.builder()
+                .anonId(anonId)
+                .news(news)
+                .experimentKey(experimentKey)
+                .variant(variant)
+                .dwellTimeMs(dwellTimeMs)
+                .rankPosition(position)
+                .importanceScore(importanceScore)
+                .personalized(personalized)
+                .sessionId(sessionId)
+                .userAgent(userAgent)
+                .ipAddress(ipAddress)
+                .clickSource("experimental_news_list")
+                .clickedAt(OffsetDateTime.now())
+                .datePartition(OffsetDateTime.now().toLocalDate().toString())
+                .build();
+            
+            clickLogRepository.save(clickLog);
+            
+            log.debug("Logged experiment click: user={}, news={}, exp={}, variant={}, dwell={}ms", 
+                anonId, newsId, experimentKey, variant, dwellTimeMs);
+                
+        } catch (Exception e) {
+            log.error("Failed to log experiment click: user={}, news={}, exp={}, variant={}", 
+                anonId, newsId, experimentKey, variant, e);
         }
     }
     

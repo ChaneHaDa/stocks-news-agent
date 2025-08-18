@@ -61,4 +61,32 @@ public interface ClickLogRepository extends JpaRepository<ClickLog, Long> {
      */
     @Query("DELETE FROM ClickLog cl WHERE cl.clickedAt < :cutoffDate")
     void deleteClicksBefore(@Param("cutoffDate") OffsetDateTime cutoffDate);
+    
+    // F2: Additional methods for experiment metrics calculation
+    
+    /**
+     * Count clicks by experiment, variant and date
+     */
+    long countByExperimentKeyAndVariantAndDatePartition(String experimentKey, String variant, String datePartition);
+    
+    /**
+     * Count distinct users who clicked by experiment, variant and date
+     */
+    @Query("SELECT COUNT(DISTINCT cl.anonId) FROM ClickLog cl " +
+           "WHERE cl.experimentKey = :experimentKey AND cl.variant = :variant AND cl.datePartition = :datePartition")
+    Long countDistinctAnonIdByExperimentKeyAndVariantAndDatePartition(
+        @Param("experimentKey") String experimentKey, 
+        @Param("variant") String variant, 
+        @Param("datePartition") String datePartition);
+    
+    /**
+     * Get average dwell time by experiment, variant and date
+     */
+    @Query("SELECT AVG(cl.dwellTimeMs) FROM ClickLog cl " +
+           "WHERE cl.experimentKey = :experimentKey AND cl.variant = :variant AND cl.datePartition = :datePartition " +
+           "AND cl.dwellTimeMs IS NOT NULL AND cl.dwellTimeMs > 0")
+    Double averageDwellTimeByExperimentKeyAndVariantAndDatePartition(
+        @Param("experimentKey") String experimentKey, 
+        @Param("variant") String variant, 
+        @Param("datePartition") String datePartition);
 }

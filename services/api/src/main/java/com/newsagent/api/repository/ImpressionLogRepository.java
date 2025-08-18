@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Set;
 
 @Repository
 public interface ImpressionLogRepository extends JpaRepository<ImpressionLog, Long> {
@@ -56,4 +57,52 @@ public interface ImpressionLogRepository extends JpaRepository<ImpressionLog, Lo
      */
     @Query("DELETE FROM ImpressionLog il WHERE il.timestamp < :cutoffDate")
     void deleteImpressionsBefore(@Param("cutoffDate") OffsetDateTime cutoffDate);
+    
+    // F2: Additional methods for experiment metrics calculation
+    
+    /**
+     * Count impressions by experiment, variant and date
+     */
+    long countByExperimentKeyAndVariantAndDatePartition(String experimentKey, String variant, String datePartition);
+    
+    /**
+     * Count distinct users by experiment, variant and date
+     */
+    @Query("SELECT COUNT(DISTINCT il.anonId) FROM ImpressionLog il " +
+           "WHERE il.experimentKey = :experimentKey AND il.variant = :variant AND il.datePartition = :datePartition")
+    Long countDistinctAnonIdByExperimentKeyAndVariantAndDatePartition(
+        @Param("experimentKey") String experimentKey, 
+        @Param("variant") String variant, 
+        @Param("datePartition") String datePartition);
+    
+    /**
+     * Get average position by experiment, variant and date
+     */
+    @Query("SELECT AVG(il.position) FROM ImpressionLog il " +
+           "WHERE il.experimentKey = :experimentKey AND il.variant = :variant AND il.datePartition = :datePartition")
+    Double averagePositionByExperimentKeyAndVariantAndDatePartition(
+        @Param("experimentKey") String experimentKey, 
+        @Param("variant") String variant, 
+        @Param("datePartition") String datePartition);
+    
+    /**
+     * Count impressions with diversity applied
+     */
+    long countByExperimentKeyAndVariantAndDatePartitionAndDiversityApplied(
+        String experimentKey, String variant, String datePartition, boolean diversityApplied);
+    
+    /**
+     * Count impressions with personalization applied
+     */
+    long countByExperimentKeyAndVariantAndDatePartitionAndPersonalized(
+        String experimentKey, String variant, String datePartition, boolean personalized);
+    
+    /**
+     * Get distinct variants for experiment and date
+     */
+    @Query("SELECT DISTINCT il.variant FROM ImpressionLog il " +
+           "WHERE il.experimentKey = :experimentKey AND il.datePartition = :datePartition")
+    Set<String> findDistinctVariantsByExperimentKeyAndDatePartition(
+        @Param("experimentKey") String experimentKey, 
+        @Param("datePartition") String datePartition);
 }
