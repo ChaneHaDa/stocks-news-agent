@@ -9,10 +9,10 @@ import lombok.Builder;
 import java.time.OffsetDateTime;
 
 @Entity
-@Table(name = "news_embedding", indexes = {
-    @Index(name = "idx_news_embedding_news_id", columnList = "news_id"),
-    @Index(name = "idx_news_embedding_dimension", columnList = "dimension"),
-    @Index(name = "idx_news_embedding_model", columnList = "model_version")
+@Table(name = "news_embedding_v2", indexes = {
+    @Index(name = "idx_news_embedding_v2_news_id", columnList = "news_id"),
+    @Index(name = "idx_news_embedding_v2_dimension", columnList = "dimension"),
+    @Index(name = "idx_news_embedding_v2_model", columnList = "model_version")
 })
 @Data
 @NoArgsConstructor
@@ -28,14 +28,19 @@ public class NewsEmbedding {
     @JoinColumn(name = "news_id", nullable = false, unique = true)
     private News news;
     
-    @Column(name = "vector", columnDefinition = "TEXT", nullable = false)
-    private String vector; // JSON array of floats: [0.1, 0.2, ...]
+    @Column(name = "vector_text", columnDefinition = "TEXT", nullable = false)
+    private String vectorText; // JSON array of floats for H2 compatibility: [0.1, 0.2, ...]
+    
+    @Column(name = "vector_pg", columnDefinition = "TEXT")
+    private String vectorPg; // pgvector format string for PostgreSQL (will be null in H2)
     
     @Column(nullable = false)
-    private Integer dimension;
+    @Builder.Default
+    private Integer dimension = 768;
     
     @Column(name = "model_version", length = 50)
-    private String modelVersion;
+    @Builder.Default
+    private String modelVersion = "sentence-transformers";
     
     @Column(name = "l2_norm")
     private Double l2Norm;

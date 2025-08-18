@@ -32,6 +32,14 @@ public class FeatureFlagService {
     }
     
     /**
+     * Get boolean flag value with custom default
+     */
+    @Cacheable(value = "featureFlags", key = "#flagKey")
+    public boolean isEnabled(String flagKey, boolean defaultValue) {
+        return getValue(flagKey, Boolean.class, defaultValue);
+    }
+    
+    /**
      * Get string flag value with caching
      */
     @Cacheable(value = "featureFlags", key = "#flagKey")

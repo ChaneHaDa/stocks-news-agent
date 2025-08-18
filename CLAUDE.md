@@ -180,9 +180,9 @@ Key configuration for Docker Compose deployment:
 - **8000**: Spring Boot API (public)
 - **8001**: FastAPI ML Service (internal)
 
-## Current State (M3 Complete)
+## Current State (F1 Complete)
 
-Production-ready embedding-based intelligent recommendation system with:
+Production-ready real-time embedding pipeline & vector database system with:
 
 ### ✅ M1: Microservices Architecture Foundation
 - **Service Separation**: Spring Boot API + FastAPI ML + Next.js Web
@@ -207,11 +207,20 @@ Production-ready embedding-based intelligent recommendation system with:
 - **Production Integration**: 85.7% test success rate, comprehensive documentation
 - **4 New Database Tables**: NewsEmbedding, NewsTopic, UserPreference, ClickLog
 
-### 🔄 M4+ Next: Advanced AI Integration
-- Real-time embedding pipeline with vector database integration
-- A/B testing framework for personalization effectiveness
-- Advanced clustering algorithms (HDBSCAN, K-means)
-- Deep learning embeddings (Ko-BERT, RoBERTa)
+### ✅ F1: Real-time Embedding Pipeline & Vector Database (Complete)
+- **pgvector Integration**: H2/PostgreSQL dual compatibility with auto-detection
+- **Real-time Pipeline**: Event-driven embedding generation (news save → ML call → vector storage)
+- **Vector Search API**: 4 endpoints for similarity search, text search, backlog processing
+- **HNSW Optimization**: PostgreSQL vector indexes for sub-50ms response times
+- **Graceful Degradation**: H2 fallback with manual cosine similarity computation
+- **Production Monitoring**: Health checks, circuit breakers, structured logging
+- **Database Migration**: V6 schema with news_embedding_v2 table (768-dimension)
+- **Async Processing**: Event listeners for non-blocking embedding generation
+
+### 🔄 F2+ Next: A/B Testing & Advanced AI
+- **F2**: A/B testing framework (anonymous user bucketing, CTR/dwell metrics)
+- **F3**: Advanced clustering algorithms (HDBSCAN, K-means mini-batch)
+- **F4**: Deep learning embeddings (Ko-BERT, RoBERTa with ONNX optimization)
 
 ## Code Conventions
 

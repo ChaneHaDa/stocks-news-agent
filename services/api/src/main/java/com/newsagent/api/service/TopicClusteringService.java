@@ -117,7 +117,7 @@ public class TopicClusteringService {
         for (NewsEmbedding embedding : newsEmbeddings) {
             try {
                 List<Float> vector = objectMapper.readValue(
-                    embedding.getVector(), 
+                    embedding.getVectorText(), 
                     new TypeReference<List<Float>>() {}
                 );
                 embeddings.put(embedding.getNews().getId(), vector);

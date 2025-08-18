@@ -75,7 +75,8 @@ public class EmbeddingService {
             // Create and save NewsEmbedding entity
             NewsEmbedding embedding = NewsEmbedding.builder()
                 .news(news)
-                .vector(vectorJson)
+                .vectorText(vectorJson)
+                .vectorPg(convertToPgVector(result.getVector())) // For PostgreSQL
                 .dimension(result.getVector().size())
                 .modelVersion(mlResponse.get().getModelVersion())
                 .l2Norm(result.getNorm())
@@ -161,7 +162,8 @@ public class EmbeddingService {
                     
                     NewsEmbedding embedding = NewsEmbedding.builder()
                         .news(news)
-                        .vector(vectorJson)
+                        .vectorText(vectorJson)
+                        .vectorPg(convertToPgVector(result.getVector())) // For PostgreSQL
                         .dimension(result.getVector().size())
                         .modelVersion(mlResponse.get().getModelVersion())
                         .l2Norm(result.getNorm())
@@ -197,7 +199,7 @@ public class EmbeddingService {
             }
             
             List<Float> vector = objectMapper.readValue(
-                embedding.get().getVector(), 
+                embedding.get().getVectorText(), 
                 new TypeReference<List<Float>>() {}
             );
             
@@ -269,5 +271,28 @@ public class EmbeddingService {
         }
         
         return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
+    }
+    
+    /**
+     * Convert float vector to pgvector format string
+     */
+    private String convertToPgVector(List<Float> vector) {
+        if (vector == null || vector.isEmpty()) {
+            return null;
+        }
+        
+        try {
+            // pgvector format: "[0.1,0.2,0.3]"
+            StringBuilder sb = new StringBuilder("[");
+            for (int i = 0; i < vector.size(); i++) {
+                if (i > 0) sb.append(",");
+                sb.append(vector.get(i));
+            }
+            sb.append("]");
+            return sb.toString();
+        } catch (Exception e) {
+            log.warn("Failed to convert vector to pgvector format", e);
+            return null;
+        }
     }
 }
