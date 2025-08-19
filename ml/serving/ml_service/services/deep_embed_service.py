@@ -11,8 +11,9 @@ from enum import Enum
 
 import torch
 import numpy as np
-from transformers import AutoTokenizer, AutoModel, RobertaTokenizer, RobertaModel
-from sentence_transformers import SentenceTransformer
+from transformers import AutoTokenizer, AutoModel
+
+# F4 Deep Learning Models - Using transformers only for stability
 
 from ..core.config import Settings
 from ..core.logging import get_logger
@@ -24,9 +25,8 @@ logger = get_logger(__name__)
 class ModelType(Enum):
     """Available embedding model types."""
     MOCK = "mock"
-    KOBERT = "kobert"
+    KOBERT = "kobert" 
     ROBERTA_KOREAN = "roberta-korean"
-    SENTENCE_TRANSFORMER = "sentence-transformer"
 
 
 @dataclass
@@ -50,19 +50,14 @@ class DeepEmbedService:
         self.tokenizers = {}
         self.model_configs = {
             ModelType.KOBERT: {
-                "model_name": "skt/kobert-base-v1",
+                "model_name": "monologg/kobert",  # Alternative KoBERT model
                 "dimension": 768,
                 "max_length": 512
             },
             ModelType.ROBERTA_KOREAN: {
-                "model_name": "klue/roberta-large",
-                "dimension": 1024,
+                "model_name": "klue/roberta-base",  # Use base model for stability  
+                "dimension": 768,
                 "max_length": 512
-            },
-            ModelType.SENTENCE_TRANSFORMER: {
-                "model_name": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-                "dimension": 384,
-                "max_length": 256
             }
         }
         
@@ -97,8 +92,6 @@ class DeepEmbedService:
                 await self._load_kobert_model()
             elif model_type == ModelType.ROBERTA_KOREAN:
                 await self._load_roberta_model()
-            elif model_type == ModelType.SENTENCE_TRANSFORMER:
-                await self._load_sentence_transformer_model()
             else:
                 raise ValueError(f"Unsupported model type: {model_type}")
             
@@ -166,25 +159,6 @@ class DeepEmbedService:
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(self.executor, _load)
     
-    async def _load_sentence_transformer_model(self):
-        """Load Sentence Transformer model for comparison."""
-        def _load():
-            try:
-                model_name = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-                
-                model = SentenceTransformer(model_name, device=str(self.device))
-                self.models[ModelType.SENTENCE_TRANSFORMER] = model
-                
-                logger.info("Sentence Transformer model loaded successfully",
-                           model_name=model_name,
-                           dimension=self.model_configs[ModelType.SENTENCE_TRANSFORMER]["dimension"])
-                
-            except Exception as e:
-                logger.error("Sentence Transformer model loading failed", exc_info=e)
-                raise
-        
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(self.executor, _load)
     
     async def embed_batch(self, text_items: List[Any], 
                          model_type: Optional[ModelType] = None) -> List[EmbeddingResult]:
@@ -201,10 +175,7 @@ class DeepEmbedService:
         start_time = time.time()
         
         try:
-            if model_type == ModelType.SENTENCE_TRANSFORMER:
-                results = await self._embed_with_sentence_transformer(text_items, model_type)
-            else:
-                results = await self._embed_with_transformer(text_items, model_type)
+            results = await self._embed_with_transformer(text_items, model_type)
             
             duration = time.time() - start_time
             
@@ -290,34 +261,6 @@ class DeepEmbedService:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(self.executor, _process_batch)
     
-    async def _embed_with_sentence_transformer(self, text_items: List[Any], 
-                                             model_type: ModelType) -> List[EmbeddingResult]:
-        """Generate embeddings using Sentence Transformer."""
-        def _process_batch():
-            model = self.models[model_type]
-            texts = [item.text for item in text_items]
-            
-            # Generate embeddings
-            embeddings = model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
-            
-            results = []
-            for i, item in enumerate(text_items):
-                embedding = embeddings[i].tolist()
-                norm = float(np.linalg.norm(embedding))
-                
-                results.append(EmbeddingResult(
-                    id=item.id,
-                    vector=embedding,
-                    norm=norm,
-                    model_type=model_type.value,
-                    dimension=len(embedding),
-                    processing_time_ms=0.0
-                ))
-            
-            return results
-        
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(self.executor, _process_batch)
     
     async def get_model_info(self) -> Dict[str, Any]:
         """Get information about loaded models."""

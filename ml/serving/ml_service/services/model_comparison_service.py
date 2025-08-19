@@ -342,8 +342,6 @@ class ModelComparisonService:
             return 768
         elif "roberta" in model_name.lower():
             return 1024
-        elif "sentence" in model_name.lower():
-            return 384
         else:
             return 384  # Default
     
