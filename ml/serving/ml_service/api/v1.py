@@ -485,7 +485,7 @@ async def quality_metrics(request: QualityMetricsRequest):
 # F4: Deep Learning Embedding API Models
 class DeepEmbedRequest(BaseModel):
     """Request for deep learning embedding generation."""
-    items: List[EmbedRequest] = Field(..., max_items=100)
+    items: List[TextItem] = Field(..., max_items=100)
     model_type: str = Field(default="kobert", description="Model type: kobert, roberta, sentence-transformer")
     use_cache: bool = Field(default=True, description="Use caching for embeddings")
     use_onnx: bool = Field(default=False, description="Use ONNX optimized version")
@@ -495,7 +495,7 @@ class DeepEmbedResponse(BaseModel):
     """Response for deep learning embedding generation."""
     success: bool
     message: str
-    items: List[EmbedResponseItem]
+    items: List[EmbedResult]
     model_info: Dict[str, Any]
     performance_metrics: Dict[str, Any]
 
@@ -541,7 +541,8 @@ async def deep_embed_text(request: DeepEmbedRequest):
         start_time = time.time()
         
         # Get services
-        cache_service = get_embedding_cache_service(ModelManager.settings)
+        model_manager = get_model_manager(request)
+        cache_service = get_embedding_cache_service(model_manager.settings)
         
         # Check cache first if enabled
         cached_results = []
@@ -555,7 +556,7 @@ async def deep_embed_text(request: DeepEmbedRequest):
             
             # Convert cached results to response format
             for cached in cached_embeddings:
-                cached_results.append(EmbedResponseItem(
+                cached_results.append(EmbedResult(
                     id=cached.text_hash[:8],  # Use hash prefix as ID
                     vector=cached.embedding_vector,
                     norm=cached.norm
@@ -569,11 +570,11 @@ async def deep_embed_text(request: DeepEmbedRequest):
         if items_to_process:
             if request.use_onnx:
                 # Use ONNX optimized service
-                onnx_service = get_onnx_embed_service(ModelManager.settings)
+                onnx_service = get_onnx_embed_service(model_manager.settings)
                 onnx_results = await onnx_service.embed_batch_onnx(items_to_process, request.model_type)
                 
                 new_results = [
-                    EmbedResponseItem(
+                    EmbedResult(
                         id=result.id,
                         vector=result.vector,
                         norm=result.norm
@@ -589,13 +590,13 @@ async def deep_embed_text(request: DeepEmbedRequest):
                     )
             else:
                 # Use regular deep learning service
-                deep_service = get_deep_embed_service(ModelManager.settings)
+                deep_service = get_deep_embed_service(model_manager.settings)
                 model_type = ModelType.KOBERT if "kobert" in request.model_type.lower() else ModelType.ROBERTA_KOREAN
                 
                 deep_results = await deep_service.embed_batch(items_to_process, model_type)
                 
                 new_results = [
-                    EmbedResponseItem(
+                    EmbedResult(
                         id=result.id,
                         vector=result.vector,
                         norm=result.norm
@@ -617,10 +618,10 @@ async def deep_embed_text(request: DeepEmbedRequest):
         
         # Get model info
         if request.use_onnx:
-            onnx_service = get_onnx_embed_service(ModelManager.settings)
+            onnx_service = get_onnx_embed_service(None)
             model_info = await onnx_service.get_performance_stats()
         else:
-            deep_service = get_deep_embed_service(ModelManager.settings)
+            deep_service = get_deep_embed_service(None)
             model_info = await deep_service.get_model_info()
         
         return DeepEmbedResponse(
@@ -650,7 +651,7 @@ async def deep_embed_text(request: DeepEmbedRequest):
 
 
 @router.post("/models/compare", response_model=ModelComparisonResponse)
-async def compare_models(request: ModelComparisonRequest):
+async def compare_models(request: ModelComparisonRequest, req: Request = Depends()):
     """Run A/B test comparison between two embedding models."""
     try:
         logger.info("Starting model comparison", 
@@ -658,7 +659,8 @@ async def compare_models(request: ModelComparisonRequest):
                    model_b=request.model_b,
                    mode=request.comparison_mode)
         
-        comparison_service = get_model_comparison_service(ModelManager.settings)
+        model_manager = get_model_manager(req)
+        comparison_service = get_model_comparison_service(model_manager.settings)
         
         # Convert string to enum
         if request.comparison_mode == "performance":
@@ -702,7 +704,7 @@ async def benchmark_model(model_name: str):
     try:
         logger.info(f"Benchmarking model: {model_name}")
         
-        comparison_service = get_model_comparison_service(ModelManager.settings)
+        comparison_service = get_model_comparison_service(None)
         
         # Run performance benchmark
         performance_result = await comparison_service.benchmark_model_performance(model_name)
@@ -739,7 +741,7 @@ async def benchmark_model(model_name: str):
 async def get_cache_statistics():
     """Get embedding cache statistics and performance metrics."""
     try:
-        cache_service = get_embedding_cache_service(ModelManager.settings)
+        cache_service = get_embedding_cache_service(None)
         stats = await cache_service.get_cache_statistics()
         
         return CacheStatsResponse(
@@ -763,7 +765,7 @@ async def get_cache_statistics():
 async def invalidate_cache(model_name: Optional[str] = None, text_pattern: Optional[str] = None):
     """Invalidate embedding cache entries."""
     try:
-        cache_service = get_embedding_cache_service(ModelManager.settings)
+        cache_service = get_embedding_cache_service(None)
         await cache_service.invalidate_cache(model_name, text_pattern)
         
         return {

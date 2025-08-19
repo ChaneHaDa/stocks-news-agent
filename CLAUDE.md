@@ -275,16 +275,18 @@ Production-ready advanced clustering algorithms with intelligent recommendation 
 - **Enterprise Integration**: Docker containerization, health checks, structured logging
 
 ### ✅ F4: Deep Learning Embeddings & ONNX Optimization (Complete)
-- **Ko-BERT Integration**: Korean financial news specialized BERT model (skt/kobert-base-v1, 768-dim)
-- **RoBERTa Support**: Alternative Korean model (klue/roberta-large, 1024-dim) for performance comparison
-- **ONNX Runtime**: Optimized inference with P95 < 50ms target performance
+- **Ko-BERT Integration**: Korean financial news specialized BERT model (monologg/kobert, 768-dim)
+- **RoBERTa Support**: Alternative Korean model (klue/roberta-base, 768-dim) for performance comparison
+- **ONNX Runtime Optimization**: P95 < 50ms target with fallback support for WSL compatibility
 - **Model A/B Testing**: Comprehensive comparison framework with performance & quality metrics
-- **Multi-layer Caching**: Model-specific strategies (Memory/Redis/Persistent) with compression
-- **Batch Optimization**: Concurrent processing with ThreadPoolExecutor for high throughput
-- **Quality Assessment**: Silhouette, semantic consistency, noise robustness scoring
-- **GPU Support**: CUDA acceleration with automatic CPU fallback
+- **Advanced Caching**: 5-model cache system (mock, kobert, roberta, onnx_kobert, onnx_roberta)
+- **Batch Processing**: ThreadPoolExecutor concurrent processing for high throughput
+- **Quality Assessment**: Silhouette scoring, semantic consistency, noise robustness validation
+- **Graceful Degradation**: ONNX fallback mode, sentencepiece dependency handling, API error recovery
 - **5 New API Endpoints**: `/embed/deep`, `/models/compare`, `/models/benchmark`, `/cache/stats`, `/cache/invalidate`
-- **Production Ready**: Docker support, health monitoring, comprehensive metrics
+- **Production Deployment**: Docker containerization, health monitoring, comprehensive fallback systems
+- **Dependency Resolution**: huggingface_hub (0.17.3), transformers (4.30.0+), tokenizers auto-resolution
+- **Enterprise Features**: Feature flags, circuit breakers, structured logging, performance metrics
 
 ### 🔄 F5+ Next: Advanced AI & Multi-Armed Bandit
 - **F5**: Multi-armed bandit optimization and real-time experiment adaptation

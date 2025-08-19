@@ -107,17 +107,19 @@ async def health_check(
             onnx_stats = await onnx_service.get_performance_stats()
             onnx_health = {
                 "service": "onnx_optimization",
-                "available": True,
+                "available": onnx_stats.get("onnx_available", False),
                 "onnx_runtime_version": onnx_stats.get("onnx_runtime_version", "unknown"),
                 "available_providers": onnx_stats.get("available_providers", []),
                 "target_p95_ms": onnx_stats.get("target_p95_ms", 50),
                 "loaded_models": onnx_stats.get("loaded_models", []),
-                "model_stats": onnx_stats.get("model_stats", {})
+                "model_stats": onnx_stats.get("model_stats", {}),
+                "fallback_mode": not onnx_stats.get("onnx_available", False)
             }
         except Exception as e:
             onnx_health = {
                 "service": "onnx_optimization", 
                 "available": False,
+                "fallback_mode": True,
                 "error": str(e)
             }
         

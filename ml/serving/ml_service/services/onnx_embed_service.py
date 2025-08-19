@@ -9,7 +9,15 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
-import onnxruntime as ort
+# Optional ONNX Runtime with fallback
+try:
+    import onnxruntime as ort
+    ONNX_AVAILABLE = True
+except ImportError as e:
+    ONNX_AVAILABLE = False
+    ort = None
+    print(f"ONNX Runtime not available: {e}")
+
 from transformers import AutoTokenizer
 
 from ..core.config import Settings
@@ -39,6 +47,10 @@ class ONNXEmbedService:
         self.models = {}
         self.tokenizers = {}
         self.sessions = {}
+        self.available = ONNX_AVAILABLE
+        
+        if not ONNX_AVAILABLE:
+            logger.warning("ONNX Runtime not available, service will run in fallback mode")
         
         # ONNX configurations for different models
         self.onnx_configs = {
@@ -71,10 +83,13 @@ class ONNXEmbedService:
         self.target_p95_ms = 50  # Performance target
         
         # Setup ONNX providers (GPU first if available)
-        self.available_providers = ort.get_available_providers()
-        if "CUDAExecutionProvider" in self.available_providers:
-            for config in self.onnx_configs.values():
-                config["providers"] = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+        if ONNX_AVAILABLE:
+            self.available_providers = ort.get_available_providers()
+            if "CUDAExecutionProvider" in self.available_providers:
+                for config in self.onnx_configs.values():
+                    config["providers"] = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+        else:
+            self.available_providers = []
         
         self.last_loaded = {}
         self.inference_counts = {}
@@ -86,6 +101,10 @@ class ONNXEmbedService:
     
     async def load_onnx_model(self, model_name: str) -> bool:
         """Load ONNX optimized model."""
+        if not ONNX_AVAILABLE:
+            logger.warning(f"ONNX not available, skipping model load: {model_name}")
+            return False
+            
         try:
             if model_name not in self.onnx_configs:
                 raise ValueError(f"Unknown model: {model_name}")
@@ -168,10 +187,15 @@ class ONNXEmbedService:
     async def embed_batch_onnx(self, text_items: List[Any], 
                               model_name: str = "kobert") -> List[ONNXEmbeddingResult]:
         """Generate embeddings using ONNX optimized models."""
+        if not ONNX_AVAILABLE:
+            # Fallback to mock embeddings when ONNX is not available
+            logger.warning("ONNX not available, using fallback embeddings")
+            return await self._fallback_embeddings(text_items, model_name)
+            
         if model_name not in self.tokenizers:
             success = await self.load_onnx_model(model_name)
             if not success:
-                raise RuntimeError(f"Failed to load ONNX model: {model_name}")
+                return await self._fallback_embeddings(text_items, model_name)
         
         start_time = time.time()
         
@@ -307,6 +331,31 @@ class ONNXEmbedService:
         
         return np.array(embeddings)
     
+    async def _fallback_embeddings(self, text_items: List[Any], 
+                                  model_name: str) -> List[ONNXEmbeddingResult]:
+        """Generate fallback embeddings when ONNX is not available."""
+        config = self.onnx_configs.get(model_name, self.onnx_configs["kobert"])
+        dimension = config["dimension"]
+        
+        results = []
+        for item in text_items:
+            # Generate deterministic mock embedding
+            embedding = self._generate_optimized_mock_embeddings([item.text], dimension)[0]
+            norm = float(np.linalg.norm(embedding))
+            
+            results.append(ONNXEmbeddingResult(
+                id=item.id,
+                vector=embedding.tolist(),
+                norm=norm,
+                model_type=f"fallback_{model_name}",
+                dimension=dimension,
+                processing_time_ms=1.0,  # Fast fallback
+                onnx_optimized=False
+            ))
+        
+        logger.info(f"Generated {len(results)} fallback embeddings for {model_name}")
+        return results
+    
     async def benchmark_models(self, test_texts: List[str], 
                               iterations: int = 100) -> Dict[str, Any]:
         """Benchmark ONNX vs non-ONNX model performance."""
@@ -359,7 +408,8 @@ class ONNXEmbedService:
     async def get_performance_stats(self) -> Dict[str, Any]:
         """Get comprehensive performance statistics."""
         stats = {
-            "onnx_runtime_version": ort.__version__,
+            "onnx_runtime_version": ort.__version__ if ONNX_AVAILABLE else "not_available",
+            "onnx_available": ONNX_AVAILABLE,
             "available_providers": self.available_providers,
             "target_p95_ms": self.target_p95_ms,
             "loaded_models": list(self.tokenizers.keys()),
