@@ -118,6 +118,19 @@ curl -X POST http://localhost:8001/v1/cluster/quality-metrics \
   -H "Content-Type: application/json" \
   -d '{"embeddings":[[0.1,0.2],[0.8,0.9]],"labels":[0,1]}'
 
+# F4 Deep Learning Embedding testing (ML Service)
+curl -X POST http://localhost:8001/v1/embed/deep \
+  -H "Content-Type: application/json" \
+  -d '{"items":[{"id":"1","text":"삼성전자 3분기 실적 발표"}],"model_type":"kobert","use_cache":true,"use_onnx":false}'
+
+curl -X POST http://localhost:8001/v1/models/compare \
+  -H "Content-Type: application/json" \
+  -d '{"model_a":"kobert","model_b":"roberta","comparison_mode":"comprehensive"}'
+
+curl -X GET http://localhost:8001/v1/models/benchmark/kobert
+
+curl -X GET http://localhost:8001/v1/cache/stats
+
 # ML model training (if needed)
 cd ml/training
 python data_extraction.py
@@ -261,9 +274,21 @@ Production-ready advanced clustering algorithms with intelligent recommendation 
 - **Backward Compatibility**: Legacy cosine similarity fallback with feature flag control
 - **Enterprise Integration**: Docker containerization, health checks, structured logging
 
-### 🔄 F4+ Next: Deep Learning & Optimization
-- **F4**: Deep learning embeddings (Ko-BERT, RoBERTa with ONNX optimization)
+### ✅ F4: Deep Learning Embeddings & ONNX Optimization (Complete)
+- **Ko-BERT Integration**: Korean financial news specialized BERT model (skt/kobert-base-v1, 768-dim)
+- **RoBERTa Support**: Alternative Korean model (klue/roberta-large, 1024-dim) for performance comparison
+- **ONNX Runtime**: Optimized inference with P95 < 50ms target performance
+- **Model A/B Testing**: Comprehensive comparison framework with performance & quality metrics
+- **Multi-layer Caching**: Model-specific strategies (Memory/Redis/Persistent) with compression
+- **Batch Optimization**: Concurrent processing with ThreadPoolExecutor for high throughput
+- **Quality Assessment**: Silhouette, semantic consistency, noise robustness scoring
+- **GPU Support**: CUDA acceleration with automatic CPU fallback
+- **5 New API Endpoints**: `/embed/deep`, `/models/compare`, `/models/benchmark`, `/cache/stats`, `/cache/invalidate`
+- **Production Ready**: Docker support, health monitoring, comprehensive metrics
+
+### 🔄 F5+ Next: Advanced AI & Multi-Armed Bandit
 - **F5**: Multi-armed bandit optimization and real-time experiment adaptation
+- **F6**: Advanced neural architectures (Transformer-XL, GPT-based embeddings)
 
 ## Code Conventions
 

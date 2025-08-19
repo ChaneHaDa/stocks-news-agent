@@ -17,6 +17,10 @@ sentence-transformers==2.2.2
 konlpy==0.6.0
 mecab-python3==1.0.6
 
+# F4: Deep Learning Models for Korean
+kobert-transformers==0.5.1
+tokenizers==0.14.1
+
 # Caching and storage
 redis==5.0.1
 cachetools==5.3.2

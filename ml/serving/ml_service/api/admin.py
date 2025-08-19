@@ -9,6 +9,9 @@ from pydantic import BaseModel
 from ..core.logging import get_logger
 from ..services.model_manager import ModelManager
 from ..services.clustering_service import clustering_service
+from ..services.deep_embed_service import get_deep_embed_service
+from ..services.onnx_embed_service import get_onnx_embed_service
+from ..services.embedding_cache_service import get_embedding_cache_service
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -19,6 +22,9 @@ class HealthResponse(BaseModel):
     status: str
     models: Dict[str, Any]
     clustering: Optional[Dict[str, Any]] = None
+    deep_learning: Optional[Dict[str, Any]] = None
+    onnx_optimization: Optional[Dict[str, Any]] = None
+    caching: Optional[Dict[str, Any]] = None
     timestamp: float
 
 
@@ -73,10 +79,81 @@ async def health_check(
         # Add clustering service health
         clustering_health = clustering_service.health_check()
         
+        # Add F4 deep learning service health
+        deep_learning_health = None
+        try:
+            deep_service = get_deep_embed_service(model_manager.settings)
+            deep_info = await deep_service.get_model_info()
+            deep_learning_health = {
+                "service": "deep_learning",
+                "available": True,
+                "loaded_models": deep_info.get("loaded_models", []),
+                "default_model": deep_info.get("default_model", "kobert"),
+                "device": deep_info.get("device", "cpu"),
+                "cuda_available": deep_info.get("cuda_available", False),
+                "embedding_counts": deep_info.get("embedding_counts", {})
+            }
+        except Exception as e:
+            deep_learning_health = {
+                "service": "deep_learning",
+                "available": False,
+                "error": str(e)
+            }
+        
+        # Add F4 ONNX optimization health
+        onnx_health = None
+        try:
+            onnx_service = get_onnx_embed_service(model_manager.settings)
+            onnx_stats = await onnx_service.get_performance_stats()
+            onnx_health = {
+                "service": "onnx_optimization",
+                "available": True,
+                "onnx_runtime_version": onnx_stats.get("onnx_runtime_version", "unknown"),
+                "available_providers": onnx_stats.get("available_providers", []),
+                "target_p95_ms": onnx_stats.get("target_p95_ms", 50),
+                "loaded_models": onnx_stats.get("loaded_models", []),
+                "model_stats": onnx_stats.get("model_stats", {})
+            }
+        except Exception as e:
+            onnx_health = {
+                "service": "onnx_optimization", 
+                "available": False,
+                "error": str(e)
+            }
+        
+        # Add F4 caching health
+        caching_health = None
+        try:
+            cache_service = get_embedding_cache_service(model_manager.settings)
+            cache_stats = await cache_service.get_cache_statistics()
+            caching_health = {
+                "service": "embedding_cache",
+                "available": True,
+                "redis_available": cache_stats["overall"].get("redis_available", False),
+                "total_models": cache_stats["overall"].get("total_models", 0),
+                "cache_configurations": list(cache_stats["configurations"].keys()),
+                "performance_summary": {
+                    model: {
+                        "hit_rate": stats.get("hit_rate", 0.0),
+                        "total_requests": stats.get("total_requests", 0)
+                    }
+                    for model, stats in cache_stats["by_model"].items()
+                }
+            }
+        except Exception as e:
+            caching_health = {
+                "service": "embedding_cache",
+                "available": False,
+                "error": str(e)
+            }
+        
         response = HealthResponse(
             status=status,
             models=models_status,
             clustering=clustering_health,
+            deep_learning=deep_learning_health,
+            onnx_optimization=onnx_health,
+            caching=caching_health,
             timestamp=time.time()
         )
         
