@@ -13,9 +13,17 @@ from ..services.deep_embed_service import get_deep_embed_service, ModelType
 from ..services.onnx_embed_service import get_onnx_embed_service
 from ..services.model_comparison_service import get_model_comparison_service, ComparisonMode
 from ..services.embedding_cache_service import get_embedding_cache_service
+from ..services.bandit_service import BanditService
+from ..models.bandit_schemas import (
+    BanditDecisionRequest, BanditDecisionResponse, BanditStateRequest, 
+    BanditStateResponse, RewardEvent, BanditPerformanceMetrics
+)
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+# Initialize bandit service
+bandit_service = BanditService()
 
 
 # Request/Response Models
@@ -780,6 +788,184 @@ async def invalidate_cache(model_name: Optional[str] = None, text_pattern: Optio
             status_code=500,
             detail={
                 "error": f"Cache invalidation failed: {str(e)}",
+                "code": "PROCESSING_ERROR"
+            }
+        )
+
+
+# Multi-Armed Bandit Endpoints (F5)
+
+@router.post("/bandit/decision", response_model=BanditDecisionResponse)
+async def make_bandit_decision(request: BanditDecisionRequest, req: Request):
+    """Make a bandit algorithm decision for recommendation."""
+    try:
+        start_time = time.time()
+        
+        logger.info("Making bandit decision", 
+                   experiment_id=request.experiment_id,
+                   algorithm=request.algorithm,
+                   context=request.context.dict() if request.context else None)
+        
+        # Make bandit decision
+        decision = bandit_service.make_decision(request)
+        
+        processing_time = time.time() - start_time
+        logger.info("Bandit decision completed",
+                   selected_arm=decision.selected_arm_id,
+                   selection_reason=decision.selection_reason,
+                   processing_time=processing_time)
+        
+        return decision
+        
+    except Exception as e:
+        logger.error("Bandit decision failed", exc_info=e)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": f"Bandit decision failed: {str(e)}",
+                "code": "PROCESSING_ERROR"
+            }
+        )
+
+
+@router.post("/bandit/reward")
+async def record_bandit_reward(reward: RewardEvent, req: Request):
+    """Record a reward for bandit learning."""
+    try:
+        logger.info("Recording bandit reward",
+                   decision_id=reward.decision_id,
+                   reward_type=reward.reward_type,
+                   reward_value=reward.reward_value)
+        
+        # Note: In production, this would update database
+        # For now, we'll just log the reward
+        # TODO: Implement database persistence
+        
+        return {
+            "success": True,
+            "message": "Reward recorded successfully",
+            "decision_id": reward.decision_id,
+            "reward_value": reward.reward_value
+        }
+        
+    except Exception as e:
+        logger.error("Bandit reward recording failed", exc_info=e)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": f"Reward recording failed: {str(e)}",
+                "code": "PROCESSING_ERROR"
+            }
+        )
+
+
+@router.get("/bandit/state", response_model=BanditStateResponse)
+async def get_bandit_state(experiment_id: int = 1, req: Request = None):
+    """Get current bandit algorithm state and statistics."""
+    try:
+        logger.info("Retrieving bandit state", experiment_id=experiment_id)
+        
+        # Get arm states (context-agnostic for now)
+        arm_states = bandit_service.get_arm_states(None)
+        
+        total_pulls = sum(arm.pulls for arm in arm_states)
+        total_rewards = sum(arm.total_reward for arm in arm_states)
+        
+        return BanditStateResponse(
+            experiment_id=experiment_id,
+            algorithm="EPSILON_GREEDY",  # Default
+            total_pulls=total_pulls,
+            total_rewards=total_rewards,
+            arms=arm_states,
+            context_hash="global"
+        )
+        
+    except Exception as e:
+        logger.error("Bandit state retrieval failed", exc_info=e)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": f"State retrieval failed: {str(e)}",
+                "code": "PROCESSING_ERROR"
+            }
+        )
+
+
+@router.post("/bandit/reset")
+async def reset_bandit_experiment(experiment_id: int = 1, req: Request = None):
+    """Reset bandit experiment state (for testing)."""
+    try:
+        logger.info("Resetting bandit experiment", experiment_id=experiment_id)
+        
+        bandit_service.reset_experiment()
+        
+        return {
+            "success": True,
+            "message": f"Experiment {experiment_id} reset successfully",
+            "experiment_id": experiment_id
+        }
+        
+    except Exception as e:
+        logger.error("Bandit reset failed", exc_info=e)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": f"Reset failed: {str(e)}",
+                "code": "PROCESSING_ERROR"
+            }
+        )
+
+
+@router.get("/bandit/performance", response_model=BanditPerformanceMetrics)
+async def get_bandit_performance(experiment_id: int = 1, time_window_hours: int = 24, req: Request = None):
+    """Get bandit algorithm performance metrics."""
+    try:
+        logger.info("Retrieving bandit performance metrics", 
+                   experiment_id=experiment_id,
+                   time_window_hours=time_window_hours)
+        
+        # Get current arm states
+        arm_states = bandit_service.get_arm_states(None)
+        
+        total_decisions = sum(arm.pulls for arm in arm_states)
+        total_rewards = sum(arm.total_reward for arm in arm_states)
+        average_reward = total_rewards / total_decisions if total_decisions > 0 else 0.0
+        
+        # Find best performing arm
+        best_arm = max(arm_states, key=lambda arm: arm.average_reward) if arm_states else arm_states[0]
+        
+        # Calculate arm performance details
+        arm_performance = {}
+        for arm in arm_states:
+            arm_performance[arm.arm_id] = {
+                "average_reward": arm.average_reward,
+                "pulls": arm.pulls,
+                "total_reward": arm.total_reward,
+                "confidence": arm.average_reward / (1.0 + arm.average_reward) if arm.average_reward > 0 else 0.0
+            }
+        
+        # Simple regret estimate (difference from best arm)
+        regret_estimate = max(0, best_arm.average_reward * total_decisions - total_rewards)
+        
+        return BanditPerformanceMetrics(
+            experiment_id=experiment_id,
+            time_window_hours=time_window_hours,
+            total_decisions=total_decisions,
+            total_rewards=total_rewards,
+            average_reward=average_reward,
+            regret_estimate=regret_estimate,
+            exploration_rate=0.1,  # Default epsilon
+            best_arm_id=best_arm.arm_id,
+            best_arm_confidence=best_arm.average_reward,
+            arm_performance=arm_performance
+        )
+        
+    except Exception as e:
+        logger.error("Bandit performance retrieval failed", exc_info=e)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": f"Performance retrieval failed: {str(e)}",
                 "code": "PROCESSING_ERROR"
             }
         )

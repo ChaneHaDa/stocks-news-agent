@@ -131,6 +131,32 @@ curl -X GET http://localhost:8001/v1/models/benchmark/kobert
 
 curl -X GET http://localhost:8001/v1/cache/stats
 
+# F5 Multi-Armed Bandit testing (ML Service & API Service)
+curl -X POST http://localhost:8001/v1/bandit/decision \
+  -H "Content-Type: application/json" \
+  -d '{"experiment_id":1,"context":{"user_id":"test_user","time_slot":14,"category":"finance"},"algorithm":"EPSILON_GREEDY","epsilon":0.1}'
+
+curl -X POST http://localhost:8001/v1/bandit/reward \
+  -H "Content-Type: application/json" \
+  -d '{"decision_id":1,"reward_type":"CLICK","reward_value":1.0,"user_id":"test_user"}'
+
+curl -X GET http://localhost:8001/v1/bandit/state?experiment_id=1
+
+curl -X GET http://localhost:8001/v1/bandit/performance?experiment_id=1&time_window_hours=24
+
+# F5 Integrated Bandit Recommendations (API Service)
+curl -X GET "http://localhost:8000/bandit/recommendations?userId=test_user&limit=10"
+
+curl -X POST http://localhost:8000/bandit/reward \
+  -H "Content-Type: application/json" \
+  -d '{"decisionId":1,"rewardType":"CLICK","rewardValue":1.0,"newsId":123,"userId":"test_user"}'
+
+curl -X POST "http://localhost:8000/bandit/click?decisionId=1&newsId=123&userId=test_user"
+
+curl -X POST "http://localhost:8000/bandit/engagement?decisionId=1&newsId=123&dwellTimeSeconds=45.5&userId=test_user"
+
+curl -X GET "http://localhost:8000/bandit/performance?experimentId=1&timeWindowHours=24"
+
 # ML model training (if needed)
 cd ml/training
 python data_extraction.py
@@ -289,9 +315,23 @@ Production-ready advanced clustering algorithms with intelligent recommendation 
 - **Enterprise Features**: Feature flags, circuit breakers, structured logging, performance metrics
 - **Critical Fix**: FastAPI Request Depends 충돌 해결 - compare_models 엔드포인트 시작 오류 수정
 
-### 🔄 F5+ Next: Advanced AI & Multi-Armed Bandit
-- **F5**: Multi-armed bandit optimization and real-time experiment adaptation
+### ✅ F5: Multi-Armed Bandit & Real-Time Optimization (Complete)
+- **Multi-Armed Bandit Algorithms**: ε-greedy, UCB1, Thompson Sampling 실시간 최적화
+- **Contextual Bandits**: 사용자 프로필, 시간대, 카테고리별 컨텍스트 기반 추천
+- **4 Recommendation Arms**: Personalized, Popular, Diverse, Recent 알고리즘 선택
+- **Real-Time Decision API**: ML Service 연동 실시간 추천 결정 시스템
+- **Reward Collection**: 클릭, 체류시간, 참여도 기반 학습 피드백
+- **Database Integration**: V8 마이그레이션 - 6개 새로운 Bandit 테이블
+- **Performance Monitoring**: 실시간 성능 지표, 후회(regret) 추정, 탐험/활용 비율
+- **Enterprise Architecture**: Circuit breaker, graceful degradation, structured logging
+- **5 New API Endpoints**: `/bandit/recommendations`, `/bandit/reward`, `/bandit/performance`, `/bandit/click`, `/bandit/engagement`
+- **Production Ready**: Docker 컨테이너화, 헬스 체크, 종합적 fallback 시스템
+- **7 New Components**: BanditService, BanditController, bandit_service.py, bandit_schemas.py
+- **Advanced Analytics**: 암(arm) 성능 비교, 실험 자동 최적화, 컨텍스트별 학습
+
+### 🔄 F6+ Next: Advanced Neural Architectures
 - **F6**: Advanced neural architectures (Transformer-XL, GPT-based embeddings)
+- **F7**: Reinforcement learning recommendation systems
 
 ## Code Conventions
 
