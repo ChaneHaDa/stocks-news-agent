@@ -287,6 +287,7 @@ Production-ready advanced clustering algorithms with intelligent recommendation 
 - **Production Deployment**: Docker containerization, health monitoring, comprehensive fallback systems
 - **Dependency Resolution**: huggingface_hub (0.17.3), transformers (4.30.0+), tokenizers auto-resolution
 - **Enterprise Features**: Feature flags, circuit breakers, structured logging, performance metrics
+- **Critical Fix**: FastAPI Request Depends 충돌 해결 - compare_models 엔드포인트 시작 오류 수정
 
 ### 🔄 F5+ Next: Advanced AI & Multi-Armed Bandit
 - **F5**: Multi-armed bandit optimization and real-time experiment adaptation
@@ -300,3 +301,39 @@ Production-ready advanced clustering algorithms with intelligent recommendation 
 - **API Contracts**: OpenAPI-first with shared schemas in `/contracts`
 - **Error Handling**: Graceful degradation with meaningful fallbacks
 - **Commit Style**: Feature-based commits with Korean descriptions for user-facing changes
+
+## Troubleshooting Guide
+
+### Common Issues & Solutions
+
+#### 1. ML Service FastAPI Startup Failure
+**Error**: `AssertionError: Cannot specify 'Depends' for type <class 'starlette.requests.Request'>`
+
+**원인**: FastAPI의 Request 객체는 자동으로 주입되므로 `Depends()` 데코레이터를 사용하면 충돌 발생
+
+**해결방법**: 
+```python
+# 잘못된 사용
+async def endpoint(request: RequestModel, req: Request = Depends()):
+
+# 올바른 사용  
+async def endpoint(request: RequestModel, req: Request):
+```
+
+**수정된 파일**: `ml/serving/ml_service/api/v1.py:654` (compare_models 엔드포인트)
+
+#### 2. Docker 컨테이너 시작 실패
+**해결방법**: 
+```bash
+# 컨테이너 재빌드
+docker compose down
+docker compose up --build
+
+# 로그 확인
+docker compose logs -f ml-service
+```
+
+#### 3. ONNX Runtime WSL 호환성 문제
+**Error**: `cannot enable executable stack as shared object requires: Invalid argument`
+
+**해결방법**: ONNX Runtime은 자동으로 fallback 모드로 동작하며 서비스 기능에는 영향 없음
