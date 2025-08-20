@@ -651,7 +651,7 @@ async def deep_embed_text(request: DeepEmbedRequest):
 
 
 @router.post("/models/compare", response_model=ModelComparisonResponse)
-async def compare_models(request: ModelComparisonRequest, req: Request = Depends()):
+async def compare_models(request: ModelComparisonRequest, req: Request):
     """Run A/B test comparison between two embedding models."""
     try:
         logger.info("Starting model comparison", 
